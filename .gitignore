@@ -1,0 +1,23 @@
+# Ansible
+*.retry
+*.log
+ansible_collections/
+
+# Python virtual environments
+/venv/
+/.venv/
+/env/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*~
+*.bak
+*.tmp
+
+# macOS generated files
+.DS_Store
+
+# Local inventory files (if you create them)
+inventory/local.yml

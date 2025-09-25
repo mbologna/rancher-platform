@@ -1,0 +1,16 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: {{ cluster.name }}
+image: rancher/k3s:{{ k3d_config.k3s_version }}
+servers: 1
+agents: 2
+options:
+  k3d:
+    wait: true
+    timeout: "360s"
+  k3s:
+    extraArgs:
+      - arg: "--disable=traefik"
+        nodeFilters:
+          - server:*

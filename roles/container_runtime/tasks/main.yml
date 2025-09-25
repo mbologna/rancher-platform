@@ -1,0 +1,94 @@
+---
+- name: Install Docker for SUSE family
+  include_tasks: install_docker_suse.yml
+  when: ansible_os_family == 'Suse'
+
+- name: Install Docker for Debian family
+  include_tasks: install_docker_debian.yml
+  when: ansible_os_family == 'Debian'
+
+- name: Check Docker daemon configuration
+  stat:
+    path: /etc/docker/daemon.json
+  register: docker_config_stat
+
+- name: Read existing Docker configuration
+  slurp:
+    src: /etc/docker/daemon.json
+  register: docker_config_content
+  when: docker_config_stat.stat.exists
+
+- name: Set expected Docker configuration
+  set_fact:
+    expected_docker_config:
+      exec-opts: ["native.cgroupdriver=systemd"]
+      log-driver: "json-file"
+      log-opts:
+        max-size: "100m"
+        max-file: "3"
+      storage-driver: "overlay2"
+      live-restore: true
+      default-ulimits:
+        nofile:
+          name: "nofile"
+          hard: 65536
+          soft: 65536
+      max-concurrent-downloads: 10
+      max-concurrent-uploads: 10
+      registry-mirrors: "{{ ['https://mirror.gcr.io'] if playbook_features.enable_registry_mirror | default(false) else [] }}"
+      insecure-registries: ["localhost:5000"]
+
+- name: Configure Docker daemon
+  copy:
+    content: "{{ expected_docker_config | to_nice_json }}"
+    dest: /etc/docker/daemon.json
+    backup: yes
+  notify: restart docker
+  when: not docker_config_stat.stat.exists or
+        (docker_config_content.content | default('') | b64decode | from_json | default({})) != expected_docker_config
+
+- name: Start and enable Docker
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Wait for Docker to be ready
+  shell: docker info
+  register: docker_ready
+  retries: 5
+  delay: 10
+  until: docker_ready.rc == 0
+
+- name: Final restart of Docker to ensure a clean network state before creating clusters
+  service:
+    name: docker
+    state: restarted
+
+- name: Pre-pull container images
+  block:
+    - name: Check existing images
+      shell: 'docker images {{ item }} --format "{% raw %}{{.Repository}}:{{.Tag}}{% endraw %}"'
+      register: image_check
+      changed_when: false
+      failed_when: false
+      loop: "{{ preload_images | default([]) }}"
+
+    - name: Pull missing images in parallel
+      command: "docker pull {{ item.item }}"
+      loop: "{{ image_check.results }}"
+      when: item.item not in item.stdout
+      async: 300
+      poll: 0
+      register: image_pull_jobs
+
+    - name: Wait for image pulls to complete
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      loop: "{{ image_pull_jobs.results | default([]) }}"
+      when: item.ansible_job_id is defined
+      register: image_pull_results
+      until: image_pull_results.finished
+      retries: 10
+      delay: 30
+  when: playbook_features.enable_image_preload | default(false)

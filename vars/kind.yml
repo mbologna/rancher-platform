@@ -1,0 +1,9 @@
+---
+# Kind-specific configuration
+# Pre-pull images for faster startup
+preload_images:
+  - "kindest/node:{{ management_cluster_versions.kubernetes }}"
+  - "quay.io/jetstack/cert-manager-controller:{{ management_cluster_versions.cert_manager }}"
+  - "quay.io/jetstack/cert-manager-webhook:{{ management_cluster_versions.cert_manager }}"
+  - "quay.io/jetstack/cert-manager-cainjector:{{ management_cluster_versions.cert_manager }}"
+

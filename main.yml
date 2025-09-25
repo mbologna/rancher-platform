@@ -1,0 +1,90 @@
+---
+- name: Bootstrap target hosts
+  hosts: servers
+  gather_facts: false
+  become: yes
+  vars:
+    # Use a generic interpreter for bootstrapping
+    ansible_python_interpreter: auto_silent
+
+  tasks:
+    - name: Pre-flight Python 3.11 installation using raw commands
+      block:
+        - name: Check for Python 3.11
+          raw: command -v python3.11
+          register: python311_exists
+          changed_when: false
+          failed_when: false
+
+        - name: Get OS release information
+          raw: cat /etc/os-release
+          register: os_release
+          changed_when: false
+          when: python311_exists.rc != 0
+
+        - name: Register SLES Python3 module if needed
+          raw: suseconnect -p sle-module-python3/15.7/x86_64
+          when: python311_exists.rc != 0 and 'ID="sles"' in os_release.stdout
+
+        - name: Install Python 3.11 on SUSE family
+          raw: zypper install -y python311
+          when: python311_exists.rc != 0 and 'ID_LIKE="suse"' in os_release.stdout
+
+        - name: Install Python 3.11 on Debian family
+          raw: apt-get update && apt-get install -y python3.11
+          when: python311_exists.rc != 0 and 'ID_LIKE="debian"' in os_release.stdout
+
+    - name: Gather facts now that Python is available
+      ansible.builtin.setup: {}
+
+- name: Deploy Multi-cluster Development Environment with Rancher Manager
+  hosts: servers
+  gather_facts: false # Facts are already gathered in the bootstrap play
+  become: yes
+
+  vars:
+    ansible_python_interpreter: /usr/bin/python3.11
+    kubeconfig_dir: "{{ ansible_env.HOME }}/.rancher-dev/kubeconfigs"
+    management_cluster: "management-cluster"
+    workload_clusters:
+      - { name: "dev-cluster-01-kind", engine: "kind" }
+      - { name: "dev-cluster-02-k3d", engine: "k3d" }
+      - { name: "dev-cluster-03-kind", engine: "kind" }
+      - { name: "dev-cluster-04-k3d", engine: "k3d" }
+      - { name: "dev-cluster-05-kind", engine: "kind" }
+
+  pre_tasks:
+    - name: Determine all required cluster engines
+      set_fact:
+        required_engines: "{{ ['kind'] + (workload_clusters | map(attribute='engine') | list) | unique }}"
+
+    - name: Load main configuration
+      include_vars: "vars/config.yml"
+
+    - name: Load cluster engine templates
+      include_vars: "vars/{{ item }}.yml"
+      loop: "{{ required_engines }}"
+
+  roles:
+    - role: common
+      tags: [common, always]
+
+    - role: container_runtime
+      tags: [docker, runtime]
+
+    - role: cluster_tools
+      tags: [tools]
+
+    - role: cluster_provisioning
+      tags: [provision, management, workload]
+
+    - role: rancher_manager
+      tags: [rancher]
+
+    - role: development_tools
+      tags: [devtools, always]
+
+  post_tasks:
+    - name: Display environment summary
+      include_tasks: tasks/summary.yml
+      tags: [summary, always]

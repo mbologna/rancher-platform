@@ -1,0 +1,6 @@
+---
+# K3d-specific configuration
+# Pre-pull images for faster startup
+preload_images:
+  - "rancher/k3s:{{ k3d_config.k3s_version }}"
+  - "quay.io/jetstack/cert-manager-controller:{{ management_cluster_versions.cert_manager }}"

@@ -1,0 +1,12 @@
+---
+# install_k3d.yml
+- name: Check current K3d version
+  command: k3d version
+  register: k3d_version_check
+  changed_when: false
+  failed_when: false
+
+- name: Install K3d
+  shell: |
+    curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG={{ k3d_config.version }} bash
+  when: k3d_version_check.rc != 0 or k3d_config.version not in k3d_version_check.stdout

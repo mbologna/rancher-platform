@@ -1,0 +1,82 @@
+---
+- name: Check if Rancher is already installed
+  shell: |
+    kubectl --kubeconfig={{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml get deployment rancher -n cattle-system --no-headers 2>/dev/null | wc -l
+  register: rancher_deployment_check
+  changed_when: false
+  failed_when: false
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Install Rancher Manager
+  block:
+    - name: Get management cluster node internal IP
+      kubernetes.core.k8s_info:
+        kind: Node
+        name: "{{ management_cluster }}-control-plane"
+        kubeconfig: "{{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml"
+      delegate_to: "{{ inventory_hostname }}"
+      register: mgmt_node_info
+
+    - name: Set Rancher Server URL fact
+      set_fact:
+        rancher_server_url: "https://{{ mgmt_node_info.resources[0].status.addresses | selectattr('type', 'equalto', 'InternalIP') | map(attribute='address') | first }}"
+
+    - name: Add Rancher Helm repositories
+      kubernetes.core.helm_repository:
+        name: "{{ item.name }}"
+        repo_url: "{{ item.url }}"
+        state: present
+      loop:
+        - { name: 'rancher-stable', url: 'https://releases.rancher.com/server-charts/stable' }
+        - { name: 'rancher-latest', url: 'https://releases.rancher.com/server-charts/latest' }
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Install Rancher via Helm
+      kubernetes.core.helm:
+        name: rancher
+        chart_ref: "rancher-{{ management_cluster_versions.rancher_channel | default('stable') }}/rancher"
+        release_namespace: cattle-system
+        create_namespace: true
+        kubeconfig: "{{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml"
+        values:
+          rancherServerUrl: "{{ rancher_server_url }}"
+          hostname: "{{ rancher_hostname }}"
+          replicas: 3
+          bootstrapPassword: "{{ rancher_bootstrap_password }}"
+          debug: true
+          extraEnv:
+            - name: CATTLE_DEV_MODE
+              value: "true"
+            - name: CATTLE_LOG_LEVEL
+              value: "debug"
+        update_repo_cache: yes
+        wait: true
+        wait_timeout: 600s
+      delegate_to: "{{ inventory_hostname }}"
+
+  when: rancher_deployment_check.stdout | int == 0
+
+- name: Patch Rancher Manager service to use correct NodePorts
+  shell: |
+    kubectl patch service rancher -n cattle-system \
+      --kubeconfig={{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml \
+      --type=merge \
+      -p '{
+        "spec": {
+          "type": "NodePort",
+          "ports": [
+            { "name": "http", "port": 80, "nodePort": {{ rancher_ports.http | int }} },
+            { "name": "https", "port": 443, "nodePort": {{ rancher_ports.https | int }} }
+          ]
+        }
+      }'
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Wait for Rancher Manager to be ready
+  include_tasks: "wait_for_rancher.yml"
+
+- name: Generate API token for automation
+  include_tasks: "generate_api_token.yml"
+
+- name: Setup cluster auto-import
+  include_tasks: "setup_cluster_import.yml"

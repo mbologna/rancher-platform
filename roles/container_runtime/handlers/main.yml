@@ -1,0 +1,10 @@
+---
+- name: restart docker
+  service:
+    name: docker
+    state: restarted
+  listen: "docker config changed"
+
+- name: reload sysctl
+  command: sysctl --system
+  listen: "reload sysctl"

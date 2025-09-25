@@ -1,0 +1,214 @@
+---
+- name: Create development helper scripts
+  copy:
+    content: "{{ item.content }}"
+    dest: "/usr/local/bin/{{ item.name }}"
+    mode: '0755'
+    force: no
+  loop:
+    - name: "rancher-logs"
+      content: |
+        #!/bin/bash
+        kubectl -n cattle-system logs -l app=rancher --tail=100 -f --kubeconfig={{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml
+
+    - name: "switch-cluster"
+      content: |
+        #!/bin/bash
+        if [ -z "$1" ]; then
+          echo "Available clusters:"
+          ls {{ kubeconfig_dir }}/*-kubeconfig.yaml | xargs -n1 basename -s -kubeconfig.yaml
+          exit 1
+        fi
+        if [ ! -f "{{ kubeconfig_dir }}/$1-kubeconfig.yaml" ]; then
+          echo "Cluster $1 not found"
+          exit 1
+        fi
+        export KUBECONFIG="{{ kubeconfig_dir }}/$1-kubeconfig.yaml"
+        echo "Switched to cluster: $1"
+        kubectl cluster-info --kubeconfig="{{ kubeconfig_dir }}/$1-kubeconfig.yaml"
+        echo "To use: export KUBECONFIG={{ kubeconfig_dir }}/$1-kubeconfig.yaml"
+
+    - name: "cluster-status"
+      content: |
+        #!/bin/bash
+        echo "=== Development Environment Status ==="
+        echo "Rancher Manager URL: https://{{ rancher_hostname }}:443"
+        echo "Management cluster: {{ management_cluster }}"
+        echo ""
+        echo "=== Management Cluster ==="
+        kubectl --kubeconfig={{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml get nodes
+        echo ""
+        echo "=== Rancher Manager Pods ==="
+        kubectl --kubeconfig={{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml get pods -n cattle-system
+        echo ""
+        echo "=== Available Clusters ==="
+        for config in {{ kubeconfig_dir }}/*-kubeconfig.yaml; do
+          cluster=$(basename "$config" -kubeconfig.yaml)
+          if [ "$cluster" != "{{ management_cluster }}" ]; then
+            echo "  Cluster: $cluster"
+            kubectl --kubeconfig="$config" get nodes --no-headers 2>/dev/null | wc -l | xargs echo "    Nodes:"
+          fi
+        done
+
+    - name: "cleanup-clusters"
+      content: |
+        #!/bin/bash
+        set -e
+        echo "--- Cleaning up development clusters ---"
+
+        RANCHER_URL="https://{{ rancher_hostname }}:443"
+        RANCHER_TOKEN_FILE="{{ ansible_env.HOME }}/.rancher-dev/rancher-api-token"
+
+        if [ -f "$RANCHER_TOKEN_FILE" ]; then
+            RANCHER_TOKEN=$(cat "$RANCHER_TOKEN_FILE")
+            echo ">>> Deleting cluster objects from Rancher Manager..."
+            CLUSTER_IDS=$(curl -sk -H "Authorization: Bearer $RANCHER_TOKEN" "$RANCHER_URL/v3/clusters" | jq -r '.data[] | select(.name | test("dev-cluster-")) | .id')
+            for id in $CLUSTER_IDS; do
+                echo "Deleting Rancher cluster object: $id"
+                curl -sk -H "Authorization: Bearer $RANCHER_TOKEN" -X DELETE "$RANCHER_URL/v3/clusters/$id"
+            done
+        fi
+
+        {% for engine in required_engines %}
+        echo ">>> Deleting local {{ engine }} clusters..."
+        if [ "{{ engine }}" == "kind" ]; then
+          kind get clusters | while read -r cluster_name; do
+            echo "Deleting kind cluster: $cluster_name"
+            kind delete cluster --name "$cluster_name"
+          done
+        elif [ "{{ engine }}" == "k3d" ]; then
+          k3d cluster list | awk 'NR>1 {print $1}' | while read -r cluster_name; do
+            echo "Deleting k3d cluster: $cluster_name"
+            k3d cluster delete "$cluster_name"
+          done
+        fi
+        {% endfor %}
+        rm -f {{ kubeconfig_dir }}/*-kubeconfig.yaml
+        echo "--- Local cleanup completed ---"
+
+    - name: "port-forward-rancher"
+      content: |
+        #!/bin/bash
+        echo "Port forwarding Rancher Manager (local access on port 8443)"
+        kubectl --kubeconfig={{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml -n cattle-system port-forward svc/rancher 8443:443
+
+    - name: "get-cluster-token"
+      content: |
+        #!/bin/bash
+        CLUSTER_NAME="${1:-dev-cluster-01}"
+        echo "Getting service account token for cluster: $CLUSTER_NAME"
+
+        KUBECONFIG_FILE="{{ kubeconfig_dir }}/${CLUSTER_NAME}-kubeconfig.yaml"
+        if [ ! -f "$KUBECONFIG_FILE" ]; then
+          echo "Cluster kubeconfig not found: $KUBECONFIG_FILE"
+          exit 1
+        fi
+
+        # Create service account
+        kubectl --kubeconfig="$KUBECONFIG_FILE" create serviceaccount cluster-admin-sa -n default --dry-run=client -o yaml | kubectl --kubeconfig="$KUBECONFIG_FILE" apply -f -
+
+        # Create cluster role binding
+        kubectl --kubeconfig="$KUBECONFIG_FILE" create clusterrolebinding cluster-admin-sa --clusterrole=cluster-admin --serviceaccount=default:cluster-admin-sa --dry-run=client -o yaml | kubectl --kubeconfig="$KUBECONFIG_FILE" apply -f -
+
+        # Get token
+        TOKEN=$(kubectl --kubeconfig="$KUBECONFIG_FILE" create token cluster-admin-sa -n default --duration=8760h)
+        echo "Token for $CLUSTER_NAME:"
+        echo "$TOKEN"
+
+- name: Create cluster import automation
+  copy:
+    content: |
+      #!/bin/bash
+      set -e
+
+      CLUSTER_NAME="${1}"
+      RANCHER_URL="https://{{ rancher_hostname }}:443"
+
+      if [ -z "$CLUSTER_NAME" ]; then
+        echo "Usage: $0 <cluster-name>"
+        echo "Available clusters:"
+        ls {{ kubeconfig_dir }}/*-kubeconfig.yaml | xargs -n1 basename -s -kubeconfig.yaml | grep -v {{ management_cluster }}
+        exit 1
+      fi
+
+      KUBECONFIG_FILE="{{ kubeconfig_dir }}/${CLUSTER_NAME}-kubeconfig.yaml"
+      if [ ! -f "$KUBECONFIG_FILE" ]; then
+        echo "Cluster kubeconfig not found: $KUBECONFIG_FILE"
+        exit 1
+      fi
+
+      echo "Importing cluster $CLUSTER_NAME into Rancher Manager..."
+
+      # Wait for Rancher API
+      until curl -k "$RANCHER_URL/ping" >/dev/null 2>&1; do
+        echo "Waiting for Rancher Manager API..."
+        sleep 5
+      done
+
+      # Check if API token exists
+      if [ ! -f "{{ ansible_env.HOME }}/.rancher-dev/rancher-api-token" ]; then
+        echo "Rancher API token not found. Please run the main playbook first."
+        exit 1
+      fi
+
+      RANCHER_TOKEN=$(cat {{ ansible_env.HOME }}/.rancher-dev/rancher-api-token)
+
+      # Register cluster with Rancher
+      IMPORT_MANIFEST=$(curl -sk \
+        -H "Authorization: Bearer $RANCHER_TOKEN" \
+        -H "Content-Type: application/json" \
+        -X POST \
+        "$RANCHER_URL/v3/clusters" \
+        -d "{
+          \"type\": \"cluster\",
+          \"name\": \"$CLUSTER_NAME\",
+          \"description\": \"Auto-imported $CLUSTER_NAME\",
+          \"labels\": {
+            \"environment\": \"development\",
+            \"imported-by\": \"automation\"
+          }
+        }" | jq -r '.registrationToken.manifest')
+
+      # Apply import manifest to target cluster
+      echo "$IMPORT_MANIFEST" | kubectl --kubeconfig="$KUBECONFIG_FILE" apply -f -
+
+      echo "Cluster import initiated for $CLUSTER_NAME"
+      echo "Check status at: $RANCHER_URL"
+    dest: "/usr/local/bin/import-cluster"
+    mode: '0755'
+    force: no
+
+- name: Create development profile script
+  copy:
+    content: |
+      #!/bin/bash
+      # Development environment profile
+
+      export KUBECONFIG="{{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml"
+      export RANCHER_URL="https://{{ rancher_hostname }}:443"
+
+      # Aliases
+      alias k='kubectl'
+      alias kc='kubectl --kubeconfig'
+      alias clusters='ls {{ kubeconfig_dir }}/*-kubeconfig.yaml | xargs -n1 basename -s -kubeconfig.yaml'
+      alias rancher-ui='echo "Rancher Manager: $RANCHER_URL (admin/{{ rancher_bootstrap_password }})"'
+
+      echo "=== Development Environment Loaded ==="
+      echo "Default KUBECONFIG: $KUBECONFIG"
+      echo "Rancher Manager: $RANCHER_URL"
+      echo "Available commands: cluster-status, switch-cluster, rancher-logs, import-cluster"
+      echo "Available aliases: k, kc, clusters, rancher-ui"
+    dest: "{{ ansible_env.HOME }}/.rancher-dev/dev-env-profile.sh"
+    mode: '0644'
+
+- name: Display development tools information
+  debug:
+    msg:
+      - "Development tools installed successfully"
+      - "Load environment: source {{ ansible_env.HOME }}/.rancher-dev/dev-env-profile.sh"
+      - "Key commands:"
+      - "  cluster-status    - Show environment overview"
+      - "  switch-cluster    - Switch between clusters"
+      - "  rancher-logs      - Stream Rancher Manager logs"
+      - "  import-cluster    - Import cluster into Rancher"
+      - "  cleanup-clusters  - Clean up all development clusters"

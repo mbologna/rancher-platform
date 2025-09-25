@@ -1,0 +1,33 @@
+---
+# Central configuration for the development environment
+
+# Versions for components installed in the management cluster
+management_cluster_versions:
+  kubernetes: "v1.33.4"
+  cert_manager: "v1.18.2"
+  rancher_channel: "stable" # Use 'stable' or 'latest'
+  cluster_api: "v1.11.1"
+
+# Configuration for Kind clusters
+kind_config:
+  version: "v0.30.0"
+  worker_nodes: 2
+
+# Configuration for K3d clusters
+k3d_config:
+  version: "v5.8.3"
+  k3s_version: "v1.34.1-k3s1"
+  worker_nodes: 2
+
+# Port mappings for Rancher access
+rancher_ports:
+  https: "30443"
+  http: "30080"
+
+# Global playbook features and optimizations
+playbook_features:
+  enable_image_preload: true
+  enable_registry_mirror: true
+
+# Default password for the Rancher admin user
+rancher_bootstrap_password: "mbologna"

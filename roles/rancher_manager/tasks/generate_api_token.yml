@@ -1,0 +1,48 @@
+---
+- name: Wait for Rancher API to be available
+  uri:
+    url: "https://{{ rancher_hostname }}:443/ping"
+    method: GET
+    validate_certs: false
+    status_code: [200]
+  register: rancher_ping
+  retries: 10
+  delay: 10
+  until: rancher_ping.status == 200
+
+- name: Get Rancher Manager login token
+  uri:
+    url: "https://{{ rancher_hostname }}:443/v3-public/localProviders/local?action=login"
+    method: POST
+    body_format: json
+    validate_certs: false
+    body:
+      username: admin
+      password: "{{ rancher_bootstrap_password }}"
+    status_code: [200, 201]
+  register: login_response
+
+- name: Create API token for automation
+  uri:
+    url: "https://{{ rancher_hostname }}:443/v3/tokens"
+    method: POST
+    body_format: json
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ login_response.json.token }}"
+    body:
+      type: token
+      description: "Ansible Automation Token"
+      ttl: 0  # No expiration
+    status_code: [200, 201]
+  register: api_token_response
+
+- name: Save API token for cluster operations
+  set_fact:
+    rancher_api_token: "{{ api_token_response.json.token }}"
+
+- name: Save API token to file
+  copy:
+    content: "{{ rancher_api_token }}"
+    dest: "{{ ansible_env.HOME }}/.rancher-dev/rancher-api-token"
+    mode: '0600'

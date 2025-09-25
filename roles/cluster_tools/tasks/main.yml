@@ -1,0 +1,14 @@
+---
+- name: Install Kind
+  include_tasks: install_kind.yml
+  when: "'kind' in required_engines"
+
+- name: Install K3d
+  include_tasks: install_k3d.yaml
+  when: "'k3d' in required_engines"
+
+- name: Install kubectl
+  include_tasks: install_kubectl.yml
+
+- name: Install Helm
+  include_tasks: install_helm.yml

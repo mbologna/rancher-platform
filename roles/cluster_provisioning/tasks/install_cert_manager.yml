@@ -1,0 +1,59 @@
+---
+# install_cert_manager.yml
+- name: Check cert-manager installation
+  shell: |
+    kubectl --kubeconfig={{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml get namespace cert-manager --no-headers 2>/dev/null | wc -l
+  register: certmanager_check
+  changed_when: false
+  failed_when: false
+- name: Wait for cluster to be ready
+  shell: |
+    kubectl cluster-info
+  environment:
+    KUBECONFIG: "{{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml"
+  register: cluster_info
+  until: cluster_info.rc == 0
+  retries: 10
+  delay: 15
+
+- name: Install cert-manager
+  block:
+    - name: Add cert-manager Helm repo
+      kubernetes.core.helm_repository:
+        name: jetstack
+        repo_url: https://charts.jetstack.io
+        state: present
+
+    - name: Install cert-manager via Helm
+      kubernetes.core.helm:
+        name: cert-manager
+        chart_ref: jetstack/cert-manager
+        chart_version: "{{ management_cluster_versions.cert_manager }}"
+        release_namespace: cert-manager
+        create_namespace: true
+        kubeconfig: "{{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml"
+        values:
+          crds:
+            enabled: true
+          webhook:
+            timeoutSeconds: 30
+        update_repo_cache: yes
+        wait: true
+        wait_timeout: 600s
+  environment:
+    KUBECONFIG: "{{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml"
+  when: certmanager_check.stdout | int == 0
+
+- name: Wait for cert-manager webhook to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: cert-manager-webhook
+    namespace: cert-manager
+    kubeconfig: "{{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml"
+    wait: yes
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 300
+  when: certmanager_check.stdout | int == 0
