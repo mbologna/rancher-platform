@@ -32,11 +32,12 @@ case $COMMAND in
         ;;
     deploy)
         echo ">>> Running deployment playbook..."
+        unset ANSIBLE_VAULT_PASSWORD_FILE
         ansible-playbook main.yml "$@"
         ;;
     destroy)
-        echo ">>> Destroying environment on all hosts..."
-        ansible all -i inventory/hosts.yml -m shell -a "/usr/local/bin/cleanup-clusters"
+        echo ">>> Removing Rancher and cert-manager on all hosts..."
+        ansible all -i inventory/hosts.yml -m shell -a "/usr/local/bin/cleanup-rancher"
         ;;
     status)
         echo ">>> Getting status from all hosts..."

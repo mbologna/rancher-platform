@@ -5,7 +5,7 @@
     kind: Deployment
     name: rancher
     namespace: cattle-system
-    kubeconfig: "{{ kubeconfig_dir }}/{{ management_cluster }}-kubeconfig.yaml"
+    kubeconfig: "{{ rke2_kubeconfig }}"
     wait: yes
     wait_condition:
       type: Available

@@ -1,0 +1,252 @@
+---
+# ── 1. Install Rancher Turtles (includes CAPI Operator) ──────────────────────
+
+- name: Add Rancher Turtles Helm repository
+  kubernetes.core.helm_repository:
+    name: turtles
+    repo_url: https://rancher.github.io/turtles
+    state: present
+
+- name: Install Rancher Turtles via Helm
+  kubernetes.core.helm:
+    name: rancher-turtles
+    chart_ref: turtles/rancher-turtles
+    chart_version: "{{ turtles_config.version }}"
+    release_namespace: cattle-turtles-system
+    create_namespace: true
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    values:
+      cluster-api-operator:
+        cluster-api:
+          enabled: true
+    update_repo_cache: yes
+    wait: true
+    wait_timeout: 600s
+  delegate_to: "{{ inventory_hostname }}"
+
+# Pre-install CAPI CRDs so Turtles controller can start. Without them the
+# controller crashes (watches Cluster.cluster.x-k8s.io/v1beta1 at startup)
+# before the embedded CAPI Operator gets a chance to install them.
+- name: Pre-install CAPI core CRDs to unblock Turtles controller startup
+  shell: |
+    kubectl --kubeconfig={{ rke2_kubeconfig }} apply \
+      -f https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/core-components.yaml
+  changed_when: true
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Wait for Turtles controller to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: rancher-turtles-controller-manager
+    namespace: cattle-turtles-system
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    wait: yes
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 300
+  delegate_to: "{{ inventory_hostname }}"
+
+# ── 2. Install CAPI Providers ─────────────────────────────────────────────────
+# Turtles uses its own CAPIProvider CRD (turtles-capi.cattle.io/v1alpha1).
+# Custom providers (rke2, docker) must be registered in clusterctl-config first.
+# IMPORTANT version constraints:
+#   - CAPRKE2 ≤ v0.21.x uses v1beta1 contract (compatible with Turtles v0.25.4)
+#   - CAPRKE2 ≥ v0.22.x uses v1beta2 (incompatible — CAPI Operator rejects it)
+#   - capd_version must match the CAPI CoreProvider version Turtles installs
+
+- name: Wait for Turtles CAPIProvider CRD to be established
+  shell: |
+    kubectl --kubeconfig={{ rke2_kubeconfig }} \
+      get crd capiproviders.turtles-capi.cattle.io \
+      -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' 2>/dev/null
+  register: crd_established
+  until: crd_established.stdout == "True"
+  retries: 20
+  delay: 10
+  changed_when: false
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Patch clusterctl-config ConfigMap to register rke2 and docker providers
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: turtles-capi.cattle.io/v1alpha1
+      kind: ClusterctlConfig
+      metadata:
+        # Name MUST be exactly "clusterctl-config" — enforced by webhook
+        name: clusterctl-config
+        namespace: cattle-turtles-system
+      spec:
+        providers:
+          - name: rke2
+            type: BootstrapProvider
+            url: "https://github.com/rancher/cluster-api-provider-rke2/releases/download/{{ turtles_config.caprke2_version }}/bootstrap-components.yaml"
+          - name: rke2
+            type: ControlPlaneProvider
+            url: "https://github.com/rancher/cluster-api-provider-rke2/releases/download/{{ turtles_config.caprke2_version }}/control-plane-components.yaml"
+          - name: docker
+            type: InfrastructureProvider
+            url: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/infrastructure-components-development.yaml"
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Restart Turtles controller to reload clusterctl config
+  shell: |
+    kubectl --kubeconfig={{ rke2_kubeconfig }} rollout restart \
+      deployment/rancher-turtles-controller-manager -n cattle-turtles-system
+    kubectl --kubeconfig={{ rke2_kubeconfig }} rollout status \
+      deployment/rancher-turtles-controller-manager -n cattle-turtles-system \
+      --timeout=120s
+  changed_when: true
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Create cluster-api CoreProvider CR (triggers CAPI Operator to manage CAPI)
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: turtles-capi.cattle.io/v1alpha1
+      kind: CAPIProvider
+      metadata:
+        name: cluster-api
+        namespace: cattle-capi-system
+      spec:
+        name: cluster-api
+        type: core
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Install CAPI providers (RKE2) via Turtles CAPIProvider
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      - apiVersion: turtles-capi.cattle.io/v1alpha1
+        kind: CAPIProvider
+        metadata:
+          name: rke2-bootstrap
+          namespace: cattle-turtles-system
+        spec:
+          name: rke2
+          type: bootstrap
+          version: "{{ turtles_config.caprke2_version }}"
+          fetchConfig:
+            url: "https://github.com/rancher/cluster-api-provider-rke2/releases/download/{{ turtles_config.caprke2_version }}/bootstrap-components.yaml"
+
+      - apiVersion: turtles-capi.cattle.io/v1alpha1
+        kind: CAPIProvider
+        metadata:
+          name: rke2-control-plane
+          namespace: cattle-turtles-system
+        spec:
+          name: rke2
+          type: controlPlane
+          version: "{{ turtles_config.caprke2_version }}"
+          fetchConfig:
+            url: "https://github.com/rancher/cluster-api-provider-rke2/releases/download/{{ turtles_config.caprke2_version }}/control-plane-components.yaml"
+
+      - apiVersion: turtles-capi.cattle.io/v1alpha1
+        kind: CAPIProvider
+        metadata:
+          name: docker
+          namespace: cattle-turtles-system
+        spec:
+          name: docker
+          type: infrastructure
+          version: "{{ turtles_config.capd_version }}"
+          fetchConfig:
+            url: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/infrastructure-components-development.yaml"
+  delegate_to: "{{ inventory_hostname }}"
+
+
+- name: Wait for CAPI providers to be installed and ready
+  shell: |
+    TOTAL=$(kubectl --kubeconfig={{ rke2_kubeconfig }} \
+      get capiproviders -A --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    NOT_READY=$(kubectl --kubeconfig={{ rke2_kubeconfig }} \
+      get capiproviders -A \
+      -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>/dev/null \
+      | grep -cv "^Ready$" || true)
+    echo "total=$TOTAL not_ready=$NOT_READY"
+    [ "$TOTAL" -ge 4 ] && [ "$NOT_READY" -eq 0 ] && exit 0 || exit 1
+  register: providers_ready
+  until: providers_ready.rc == 0
+  retries: 30
+  delay: 20
+  changed_when: false
+  delegate_to: "{{ inventory_hostname }}"
+
+# ── 3. Create Fleet GitRepo pointing at cluster-templates/ ───────────────────
+
+- name: Create Fleet GitRepo for CAPI cluster templates
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: fleet.cattle.io/v1alpha1
+      kind: GitRepo
+      metadata:
+        name: capi-cluster-templates
+        namespace: fleet-local
+      spec:
+        repo: "{{ capi_git_repo_url }}"
+        branch: "{{ capi_git_branch }}"
+        paths:
+          - cluster-templates/clusterclasses/docker-rke2
+          - cluster-templates/applications/lb
+          - cluster-templates/clusters
+        targets:
+          - clusterSelector: {}
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Wait for Fleet GitRepo to become active
+  shell: |
+    kubectl --kubeconfig={{ rke2_kubeconfig }} \
+      get gitrepo capi-cluster-templates -n fleet-local \
+      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null
+  register: gitrepo_ready
+  until: gitrepo_ready.stdout == "True"
+  retries: 30
+  delay: 20
+  changed_when: false
+  delegate_to: "{{ inventory_hostname }}"
+
+# ── 4. Wait for CAPI clusters to be provisioned ──────────────────────────────
+
+- name: Wait for each CAPI cluster to reach Provisioned phase
+  shell: |
+    kubectl --kubeconfig={{ rke2_kubeconfig }} \
+      get cluster {{ item }} -n default \
+      -o jsonpath='{.status.phase}' 2>/dev/null
+  register: cluster_phase
+  until: cluster_phase.stdout == "Provisioned"
+  retries: 60
+  delay: 30
+  changed_when: false
+  loop: "{{ capi_clusters }}"
+  delegate_to: "{{ inventory_hostname }}"
+
+# ── 5. Wait for clusters to appear as imported in Rancher ────────────────────
+
+- name: Wait for each cluster to appear as Active in Rancher
+  uri:
+    url: "https://{{ rancher_hostname }}/v3/clusters?name={{ item }}"
+    method: GET
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ rancher_api_token }}"
+    status_code: [200]
+  register: rancher_cluster_check
+  until: >
+    rancher_cluster_check.json.data | length > 0 and
+    rancher_cluster_check.json.data[0].state == 'active'
+  retries: 40
+  delay: 30
+  loop: "{{ capi_clusters }}"
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Display imported clusters
+  debug:
+    msg: "Cluster '{{ item.item }}' is active in Rancher Manager"
+  loop: "{{ rancher_cluster_check.results }}"

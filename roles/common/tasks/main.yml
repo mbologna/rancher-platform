@@ -31,6 +31,17 @@
   ignore_errors: yes
   when: ansible_os_family == 'Debian'
 
+- name: Install Docker (required for CAPD infrastructure provider)
+  package:
+    name: docker
+    state: present
+
+- name: Start and enable Docker
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
 - name: Install development dependencies
   package:
     name:
