@@ -117,6 +117,15 @@
         type: core
   delegate_to: "{{ inventory_hostname }}"
 
+- name: Remove bootstrap capi-system namespace (Turtles manages CAPI in cattle-capi-system)
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    kind: Namespace
+    name: capi-system
+    wait: false
+  delegate_to: "{{ inventory_hostname }}"
+
 - name: Install CAPI providers (RKE2) via Turtles CAPIProvider
   kubernetes.core.k8s:
     state: present
