@@ -1,0 +1,76 @@
+---
+- name: Check installed RKE2 version
+  shell: /usr/local/bin/rke2 --version 2>/dev/null | awk '/rke2 version/{print $3}' || echo "not_installed"
+  register: rke2_installed_version
+  changed_when: false
+  failed_when: false
+
+- name: Install RKE2 server
+  shell: curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="{{ rke2_config.version }}" sh -
+  when: rke2_installed_version.stdout != rke2_config.version
+  register: rke2_installed
+
+- name: Create RKE2 config directory
+  file:
+    path: /etc/rancher/rke2
+    state: directory
+    mode: '0755'
+
+- name: Write RKE2 server configuration
+  copy:
+    content: |
+      write-kubeconfig-mode: "0644"
+      tls-san:
+        - "{{ rancher_hostname }}"
+        - "{{ ansible_host }}"
+    dest: /etc/rancher/rke2/config.yaml
+    mode: '0600'
+  register: rke2_config_changed
+
+- name: Enable RKE2 server service
+  service:
+    name: rke2-server
+    enabled: yes
+
+- name: Start RKE2 server (non-blocking — waits for kubeconfig below)
+  shell: systemctl restart rke2-server
+  when: rke2_installed is changed or rke2_config_changed is changed
+
+- name: Ensure RKE2 server is started
+  shell: systemctl start rke2-server
+  ignore_errors: true
+
+- name: Wait for RKE2 kubeconfig to be written
+  wait_for:
+    path: /etc/rancher/rke2/rke2.yaml
+    timeout: 600
+
+- name: Symlink RKE2 kubectl into PATH
+  file:
+    src: /var/lib/rancher/rke2/bin/kubectl
+    dest: /usr/local/bin/kubectl
+    state: link
+    force: yes
+
+- name: Copy kubeconfig to dev directory
+  shell: |
+    cp /etc/rancher/rke2/rke2.yaml {{ rke2_kubeconfig }}
+    chmod 600 {{ rke2_kubeconfig }}
+  changed_when: false
+
+- name: Wait for Kubernetes API server to be ready
+  shell: kubectl --kubeconfig={{ rke2_kubeconfig }} get nodes --no-headers
+  register: nodes_ready
+  until: nodes_ready.rc == 0
+  retries: 60
+  delay: 10
+  changed_when: false
+
+- name: Wait for node to reach Ready state
+  shell: |
+    kubectl --kubeconfig={{ rke2_kubeconfig }} get nodes --no-headers | grep -v " Ready" | wc -l
+  register: not_ready_nodes
+  until: not_ready_nodes.stdout | int == 0
+  retries: 60
+  delay: 10
+  changed_when: false

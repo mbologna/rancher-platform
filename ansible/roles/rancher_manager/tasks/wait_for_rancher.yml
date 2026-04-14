@@ -1,0 +1,14 @@
+---
+- name: Wait for Rancher Manager deployment to become available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: rancher
+    namespace: cattle-system
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    wait: yes
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 600
+  delegate_to: "{{ inventory_hostname }}"

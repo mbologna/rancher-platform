@@ -1,0 +1,73 @@
+---
+- name: Generate final environment summary
+  set_fact:
+    env_summary:
+      title: "🚀 RANCHER MANAGER ON RKE2"
+      access:
+        rancher_url: "https://{{ rancher_hostname }}"
+        username: "admin"
+        password: "{{ rancher_bootstrap_password }}"
+      kubeconfig: "{{ rke2_kubeconfig }}"
+
+- name: Set summary content as a fact
+  set_fact:
+    summary_content: |
+      ===============================================================================
+      {{ env_summary.title }}
+      ===============================================================================
+
+      🌐 ACCESS INFORMATION:
+      Rancher Manager: {{ env_summary.access.rancher_url }}
+      Username: {{ env_summary.access.username }}
+      Password: {{ env_summary.access.password }}
+
+      🔧 CAPI / TURTLES:
+      Fleet GitRepo: capi-cluster-templates (fleet-local namespace)
+      Cluster templates: {{ capi_git_repo_url }}/cluster-templates/
+      Workload clusters: {{ capi_clusters | join(', ') }}
+
+      📁 KUBECONFIG:
+      {{ env_summary.kubeconfig }}
+
+      🛠️ DEVELOPMENT TOOLS:
+      cluster-status        - RKE2 cluster and Rancher overview
+      rancher-logs          - Stream Rancher Manager logs
+      port-forward-rancher  - Local Rancher access (port 8443)
+      cleanup-rancher       - Remove Rancher and cert-manager
+
+      🚀 QUICK START:
+      # Load development environment in your shell:
+      source {{ ansible_env.HOME }}/.rancher-dev/dev-env-profile.sh
+
+      # Check status
+      cluster-status
+
+      ===============================================================================
+      Environment ready! Access Rancher Manager at {{ env_summary.access.rancher_url }}
+      ===============================================================================
+
+- name: Create environment summary file
+  copy:
+    content: "{{ summary_content }}"
+    dest: "{{ ansible_env.HOME }}/.rancher-dev/rancher-dev-summary.txt"
+    mode: '0644'
+
+- name: Display environment summary
+  debug:
+    msg: "{{ summary_content.split('\n') }}"
+
+- name: Final status validation
+  block:
+    - name: Check RKE2 node status
+      shell: kubectl --kubeconfig="{{ rke2_kubeconfig }}" get nodes -o wide
+      register: node_status
+
+    - name: Check Rancher Manager status
+      shell: |
+        echo "=== Rancher Manager Status ==="
+        kubectl --kubeconfig="{{ rke2_kubeconfig }}" -n cattle-system get pods
+      register: rancher_status
+
+    - name: Display final status
+      debug:
+        msg: "{{ node_status.stdout_lines + rancher_status.stdout_lines }}"

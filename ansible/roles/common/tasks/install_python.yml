@@ -1,0 +1,30 @@
+---
+- name: Check Python 3.11 availability
+  command: which python3.11
+  register: python311_check
+  changed_when: false
+  failed_when: false
+
+- name: Install Python 3.11 if needed on SUSE family
+  block:
+    - name: Register SLES Python3 module
+      shell: suseconnect -p sle-module-python3/15.7/x86_64
+      ignore_errors: yes
+      when: "'sles' in ansible_distribution | lower"
+
+    - name: Install Python 3.11 on SUSE family
+      zypper:
+        name: python311
+        state: present
+  when: python311_check.rc != 0 and ansible_os_family == 'Suse'
+
+- name: Install Python 3.11 if needed on Debian family
+  block:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+    - name: Install Python 3.11 on Debian family
+      apt:
+        name: python3.11
+        state: present
+  when: python311_check.rc != 0 and ansible_os_family == 'Debian'
