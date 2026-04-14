@@ -40,11 +40,10 @@ capm3_credentials:
   ironic_username: "CHANGE_ME"
   ironic_password: "CHANGE_ME"
 
-# Names of CAPI workload clusters to wait for (must match clusters/ in rancher-fleet-clusters)
-capi_clusters:
-  - aws-rke2-example
-  - aws-kubeadm-example
-  - metal3-rke2-example
+# Names of CAPI workload clusters to wait for after provisioning.
+# Leave empty for platform-only setup. Add cluster names when running
+# a full end-to-end deployment that provisions downstream clusters.
+capi_clusters: []
 
 # Default password for the Rancher admin user
 rancher_bootstrap_password: "mbologna"

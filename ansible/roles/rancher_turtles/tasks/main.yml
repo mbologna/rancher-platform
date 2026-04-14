@@ -131,6 +131,28 @@
     wait: false
   delegate_to: "{{ inventory_hostname }}"
 
+- name: Ensure provider namespaces exist before creating CAPIProvider objects
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ item }}"
+  loop:
+    - capa-system
+    - capm3-system
+    - cattle-capi-system
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Generate base64-encoded AWS credentials for CAPA controller
+  set_fact:
+    capa_b64_credentials: >-
+      {{ ("[default]\naws_access_key_id = " + capa_credentials.aws_access_key_id +
+          "\naws_secret_access_key = " + capa_credentials.aws_secret_access_key + "\n") | b64encode }}
+  no_log: true
+
 - name: Install CAPI providers (RKE2 + CAPA + CAPM3) via Turtles CAPIProvider
   kubernetes.core.k8s:
     state: present
@@ -183,6 +205,8 @@
           version: "{{ turtles_config.capa_version }}"
           fetchConfig:
             url: "https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/{{ turtles_config.capa_version }}/infrastructure-components.yaml"
+          variables:
+            AWS_B64ENCODED_CREDENTIALS: "{{ capa_b64_credentials }}"
 
       - apiVersion: turtles-capi.cattle.io/v1alpha1
         kind: CAPIProvider
@@ -196,6 +220,7 @@
           fetchConfig:
             url: "https://github.com/metal3-io/cluster-api-provider-metal3/releases/download/{{ turtles_config.capm3_version }}/infrastructure-components.yaml"
   delegate_to: "{{ inventory_hostname }}"
+  no_log: true
 
 
 - name: Wait for CAPI providers to be installed and ready
@@ -329,6 +354,7 @@
   delay: 30
   changed_when: false
   loop: "{{ capi_clusters }}"
+  when: capi_clusters | length > 0
   delegate_to: "{{ inventory_hostname }}"
 
 # ── 5. Wait for clusters to appear as imported in Rancher ────────────────────
@@ -348,9 +374,11 @@
   retries: 40
   delay: 30
   loop: "{{ capi_clusters }}"
+  when: capi_clusters | length > 0
   delegate_to: "{{ inventory_hostname }}"
 
 - name: Display imported clusters
   debug:
     msg: "Cluster '{{ item.item }}' is active in Rancher Manager"
   loop: "{{ rancher_cluster_check.results }}"
+  when: capi_clusters | length > 0

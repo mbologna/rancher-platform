@@ -59,7 +59,7 @@
   changed_when: false
 
 - name: Wait for Kubernetes API server to be ready
-  shell: kubectl --kubeconfig={{ rke2_kubeconfig }} get nodes --no-headers
+  shell: /usr/local/bin/kubectl --kubeconfig={{ rke2_kubeconfig }} get nodes --no-headers
   register: nodes_ready
   until: nodes_ready.rc == 0
   retries: 60
@@ -67,8 +67,9 @@
   changed_when: false
 
 - name: Wait for node to reach Ready state
-  shell: |
-    kubectl --kubeconfig={{ rke2_kubeconfig }} get nodes --no-headers | grep -v " Ready" | wc -l
+  shell: >-
+    /usr/local/bin/kubectl --kubeconfig={{ rke2_kubeconfig }} get nodes --no-headers |
+    grep -v " Ready" | wc -l
   register: not_ready_nodes
   until: not_ready_nodes.stdout | int == 0
   retries: 60

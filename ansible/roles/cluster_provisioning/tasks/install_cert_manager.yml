@@ -1,13 +1,13 @@
 ---
 - name: Check cert-manager installation
-  shell: |
-    kubectl --kubeconfig={{ rke2_kubeconfig }} get namespace cert-manager --no-headers 2>/dev/null | wc -l
+  shell: >-
+    /usr/local/bin/kubectl --kubeconfig={{ rke2_kubeconfig }} get namespace cert-manager --no-headers 2>/dev/null | wc -l
   register: certmanager_check
   changed_when: false
   failed_when: false
 
 - name: Wait for cluster to be ready
-  shell: kubectl cluster-info
+  shell: /usr/local/bin/kubectl cluster-info
   environment:
     KUBECONFIG: "{{ rke2_kubeconfig }}"
   register: cluster_info
@@ -22,6 +22,7 @@
         name: jetstack
         repo_url: https://charts.jetstack.io
         state: present
+        binary_path: /usr/local/bin/helm
 
     - name: Install cert-manager via Helm
       kubernetes.core.helm:
@@ -31,6 +32,7 @@
         release_namespace: cert-manager
         create_namespace: true
         kubeconfig: "{{ rke2_kubeconfig }}"
+        binary_path: /usr/local/bin/helm
         values:
           crds:
             enabled: true
