@@ -51,10 +51,9 @@
 # ── 2. Install CAPI Providers ─────────────────────────────────────────────────
 # Turtles uses its own CAPIProvider CRD (turtles-capi.cattle.io/v1alpha1).
 # Custom providers (rke2, docker) must be registered in clusterctl-config first.
-# IMPORTANT version constraints:
-#   - CAPRKE2 ≤ v0.21.x uses v1beta1 contract (compatible with Turtles v0.25.4)
-#   - CAPRKE2 ≥ v0.22.x uses v1beta2 (incompatible — CAPI Operator rejects it)
-#   - capd_version must match the CAPI CoreProvider version Turtles installs
+# Version contract:
+#   - CAPRKE2 ≥ v0.22.x uses v1beta2 contract — compatible with Turtles v0.26.0+
+#   - capd_version must match the CAPI CoreProvider version bundled in Turtles
 
 - name: Wait for Turtles CAPIProvider CRD to be established
   shell: |
