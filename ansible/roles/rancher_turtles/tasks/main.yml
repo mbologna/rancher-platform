@@ -24,15 +24,6 @@
     wait_timeout: 600s
   delegate_to: "{{ inventory_hostname }}"
 
-# Pre-install CAPI CRDs so Turtles controller can start. Without them the
-# controller crashes before the embedded CAPI Operator gets a chance to install them.
-- name: Pre-install CAPI core CRDs to unblock Turtles controller startup
-  shell: >-
-    kubectl --kubeconfig={{ rke2_kubeconfig }} apply
-    -f https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/core-components.yaml
-  changed_when: true
-  delegate_to: "{{ inventory_hostname }}"
-
 - name: Wait for Turtles controller to be ready
   kubernetes.core.k8s_info:
     api_version: apps/v1
@@ -63,151 +54,6 @@
 # The CoreProvider CR tells CAPI Operator to take ownership of CAPI core.
 # All other providers (rke2, docker, aws, metal3) are managed by Fleet via
 # rancher-fleet-clusters — register that GitRepo after deploy.
-
-- name: Create cluster-api CoreProvider CR
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      apiVersion: turtles-capi.cattle.io/v1alpha1
-      kind: CAPIProvider
-      metadata:
-        name: cluster-api
-        namespace: cattle-capi-system
-      spec:
-        name: cluster-api
-        type: core
-  delegate_to: "{{ inventory_hostname }}"
-
-- name: Remove bootstrap capi-system namespace (Turtles manages CAPI in cattle-capi-system)
-  kubernetes.core.k8s:
-    state: absent
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    kind: Namespace
-    name: capi-system
-    wait: false
-  delegate_to: "{{ inventory_hostname }}"
-
-# ── 3. Credential Secrets ─────────────────────────────────────────────────────
-# Credentials cannot live in the public rancher-fleet-clusters repo.
-# Ansible creates them here; Fleet-managed CAPIProviders reference them.
-
-- name: Ensure namespaces exist for credential Secrets
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: "{{ item }}"
-  loop:
-    - default
-    - capm3-system
-  delegate_to: "{{ inventory_hostname }}"
-
-- name: Create CAPA AWS credentials Secret
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: cluster-identity
-        namespace: default
-      type: Opaque
-      stringData:
-        AccessKeyID: "{{ capa_credentials.aws_access_key_id }}"
-        SecretAccessKey: "{{ capa_credentials.aws_secret_access_key }}"
-  delegate_to: "{{ inventory_hostname }}"
-  no_log: true
-
-- name: Create CAPM3 Ironic credentials Secret
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: ironic-credentials
-        namespace: capm3-system
-      type: Opaque
-      stringData:
-        IRONIC_URL: "{{ capm3_credentials.ironic_url }}"
-        IRONIC_INSPECTOR_URL: "{{ capm3_credentials.ironic_inspector_url }}"
-        IRONIC_USERNAME: "{{ capm3_credentials.ironic_username }}"
-        IRONIC_PASSWORD: "{{ capm3_credentials.ironic_password }}"
-  delegate_to: "{{ inventory_hostname }}"
-  no_log: true
-
-
-- name: Add Rancher Turtles Helm repository
-  kubernetes.core.helm_repository:
-    name: turtles
-    repo_url: https://rancher.github.io/turtles
-    state: present
-
-- name: Install Rancher Turtles via Helm
-  kubernetes.core.helm:
-    name: rancher-turtles
-    chart_ref: turtles/rancher-turtles
-    chart_version: "{{ turtles_config.version }}"
-    release_namespace: cattle-turtles-system
-    create_namespace: true
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    values:
-      cluster-api-operator:
-        cluster-api:
-          enabled: true
-    update_repo_cache: yes
-    wait: true
-    wait_timeout: 600s
-  delegate_to: "{{ inventory_hostname }}"
-
-# Pre-install CAPI CRDs so Turtles controller can start. Without them the
-# controller crashes (watches Cluster.cluster.x-k8s.io/v1beta1 at startup)
-# before the embedded CAPI Operator gets a chance to install them.
-- name: Pre-install CAPI core CRDs to unblock Turtles controller startup
-  shell: |
-    kubectl --kubeconfig={{ rke2_kubeconfig }} apply \
-      -f https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/core-components.yaml
-  changed_when: true
-  delegate_to: "{{ inventory_hostname }}"
-
-- name: Wait for Turtles controller to be ready
-  kubernetes.core.k8s_info:
-    api_version: apps/v1
-    kind: Deployment
-    name: rancher-turtles-controller-manager
-    namespace: cattle-turtles-system
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    wait: yes
-    wait_condition:
-      type: Available
-      status: "True"
-    wait_timeout: 300
-  delegate_to: "{{ inventory_hostname }}"
-
-# ── 2. Install CAPI Providers ─────────────────────────────────────────────────
-# Turtles uses its own CAPIProvider CRD (turtles-capi.cattle.io/v1alpha1).
-# Custom providers (rke2, docker) must be registered in clusterctl-config first.
-# Version contract:
-#   - CAPRKE2 ≥ v0.22.x uses v1beta2 contract — compatible with Turtles v0.26.0+
-#   - capd_version must match the CAPI CoreProvider version bundled in Turtles
-
-- name: Wait for Turtles CAPIProvider CRD to be established
-  shell: |
-    kubectl --kubeconfig={{ rke2_kubeconfig }} \
-      get crd capiproviders.turtles-capi.cattle.io \
-      -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' 2>/dev/null
-  register: crd_established
-  until: crd_established.stdout == "True"
-  retries: 20
-  delay: 10
-  changed_when: false
-  delegate_to: "{{ inventory_hostname }}"
 
 - name: Patch clusterctl-config ConfigMap to register rke2, docker, aws, and metal3 providers
   kubernetes.core.k8s:
@@ -249,7 +95,7 @@
   changed_when: true
   delegate_to: "{{ inventory_hostname }}"
 
-- name: Create cluster-api CoreProvider CR (triggers CAPI Operator to manage CAPI)
+- name: Create cluster-api CoreProvider CR (triggers CAPI Operator to manage CAPI core)
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ rke2_kubeconfig }}"
@@ -273,7 +119,11 @@
     wait: false
   delegate_to: "{{ inventory_hostname }}"
 
-- name: Ensure provider namespaces exist before creating CAPIProvider objects
+# ── 3. Credential Secrets ─────────────────────────────────────────────────────
+# Credentials cannot live in the public rancher-fleet-clusters repo.
+# Ansible creates them here; Fleet-managed CAPIProviders reference them.
+
+- name: Ensure namespaces exist for credential Secrets
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ rke2_kubeconfig }}"
@@ -283,9 +133,9 @@
       metadata:
         name: "{{ item }}"
   loop:
+    - default
     - capa-system
     - capm3-system
-    - cattle-capi-system
   delegate_to: "{{ inventory_hostname }}"
 
 - name: Generate base64-encoded AWS credentials for CAPA controller
@@ -295,118 +145,7 @@
           "\naws_secret_access_key = " + capa_credentials.aws_secret_access_key + "\n") | b64encode }}
   no_log: true
 
-- name: Install CAPI providers (RKE2 + CAPA + CAPM3) via Turtles CAPIProvider
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      - apiVersion: turtles-capi.cattle.io/v1alpha1
-        kind: CAPIProvider
-        metadata:
-          name: rke2-bootstrap
-          namespace: cattle-turtles-system
-        spec:
-          name: rke2
-          type: bootstrap
-          version: "{{ turtles_config.caprke2_version }}"
-          fetchConfig:
-            url: "https://github.com/rancher/cluster-api-provider-rke2/releases/download/{{ turtles_config.caprke2_version }}/bootstrap-components.yaml"
-
-      - apiVersion: turtles-capi.cattle.io/v1alpha1
-        kind: CAPIProvider
-        metadata:
-          name: rke2-control-plane
-          namespace: cattle-turtles-system
-        spec:
-          name: rke2
-          type: controlPlane
-          version: "{{ turtles_config.caprke2_version }}"
-          fetchConfig:
-            url: "https://github.com/rancher/cluster-api-provider-rke2/releases/download/{{ turtles_config.caprke2_version }}/control-plane-components.yaml"
-
-      - apiVersion: turtles-capi.cattle.io/v1alpha1
-        kind: CAPIProvider
-        metadata:
-          name: docker
-          namespace: cattle-turtles-system
-        spec:
-          name: docker
-          type: infrastructure
-          version: "{{ turtles_config.capd_version }}"
-          fetchConfig:
-            url: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/infrastructure-components-development.yaml"
-
-      - apiVersion: turtles-capi.cattle.io/v1alpha1
-        kind: CAPIProvider
-        metadata:
-          name: aws
-          namespace: capa-system
-        spec:
-          name: aws
-          type: infrastructure
-          version: "{{ turtles_config.capa_version }}"
-          fetchConfig:
-            url: "https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/{{ turtles_config.capa_version }}/infrastructure-components.yaml"
-          variables:
-            AWS_B64ENCODED_CREDENTIALS: "{{ capa_b64_credentials }}"
-
-      - apiVersion: turtles-capi.cattle.io/v1alpha1
-        kind: CAPIProvider
-        metadata:
-          name: metal3
-          namespace: capm3-system
-        spec:
-          name: metal3
-          type: infrastructure
-          version: "{{ turtles_config.capm3_version }}"
-          fetchConfig:
-            url: "https://github.com/metal3-io/cluster-api-provider-metal3/releases/download/{{ turtles_config.capm3_version }}/infrastructure-components.yaml"
-  delegate_to: "{{ inventory_hostname }}"
-  no_log: true
-
-
-- name: Wait for CAPI providers to be installed and ready
-  shell: |
-    TOTAL=$(kubectl --kubeconfig={{ rke2_kubeconfig }} \
-      get capiproviders -A --no-headers 2>/dev/null | wc -l | tr -d ' ')
-    NOT_READY=$(kubectl --kubeconfig={{ rke2_kubeconfig }} \
-      get capiproviders -A \
-      -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>/dev/null \
-      | grep -cv "^Ready$" || true)
-    echo "total=$TOTAL not_ready=$NOT_READY"
-    [ "$TOTAL" -ge 6 ] && [ "$NOT_READY" -eq 0 ] && exit 0 || exit 1
-  register: providers_ready
-  until: providers_ready.rc == 0
-  retries: 60
-  delay: 20
-  changed_when: false
-  delegate_to: "{{ inventory_hostname }}"
-
-# ── 3. Apply provider credential Secrets directly (not via Fleet — repo is public) ──
-
-- name: Ensure default namespace exists (for cluster-identity Secret and AWSClusterStaticIdentity)
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: default
-  delegate_to: "{{ inventory_hostname }}"
-
-- name: Ensure capm3-system namespace exists
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: capm3-system
-  delegate_to: "{{ inventory_hostname }}"
-
-- name: Create CAPA AWS credentials Secret
+- name: Create CAPA AWS credentials Secret (used by cluster-identity for AWSClusterStaticIdentity)
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ rke2_kubeconfig }}"
@@ -420,6 +159,22 @@
       stringData:
         AccessKeyID: "{{ capa_credentials.aws_access_key_id }}"
         SecretAccessKey: "{{ capa_credentials.aws_secret_access_key }}"
+  delegate_to: "{{ inventory_hostname }}"
+  no_log: true
+
+- name: Create CAPA credentials Secret for CAPIProvider variable substitution
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: capa-credentials
+        namespace: capa-system
+      type: Opaque
+      stringData:
+        AWS_B64ENCODED_CREDENTIALS: "{{ capa_b64_credentials }}"
   delegate_to: "{{ inventory_hostname }}"
   no_log: true
 
@@ -441,47 +196,6 @@
         IRONIC_PASSWORD: "{{ capm3_credentials.ironic_password }}"
   delegate_to: "{{ inventory_hostname }}"
   no_log: true
-
-# ── 4. Create Fleet GitRepo pointing at the public cluster templates repo ─────
-
-- name: Create Fleet GitRepo for CAPI cluster templates
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      apiVersion: fleet.cattle.io/v1alpha1
-      kind: GitRepo
-      metadata:
-        name: capi-cluster-templates
-        namespace: fleet-local
-      spec:
-        repo: "{{ capi_git_repo_url }}"
-        branch: "{{ capi_git_branch }}"
-        # Credentials are applied by Ansible above — Fleet only manages topology
-        paths:
-          - providers/capa
-          - providers/capm3
-          - clusterclasses/aws-rke2
-          - clusterclasses/aws-kubeadm
-          - clusterclasses/metal3-rke2
-          - clusters/aws-rke2-example
-          - clusters/aws-kubeadm-example
-          - clusters/metal3-rke2-example
-        targets:
-          - clusterSelector: {}
-  delegate_to: "{{ inventory_hostname }}"
-
-- name: Wait for Fleet GitRepo to become active
-  shell: |
-    kubectl --kubeconfig={{ rke2_kubeconfig }} \
-      get gitrepo capi-cluster-templates -n fleet-local \
-      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null
-  register: gitrepo_ready
-  until: gitrepo_ready.stdout == "True"
-  retries: 30
-  delay: 20
-  changed_when: false
-  delegate_to: "{{ inventory_hostname }}"
 
 # ── 4. Wait for CAPI clusters to be provisioned ──────────────────────────────
 
