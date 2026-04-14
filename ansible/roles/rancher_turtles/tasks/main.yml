@@ -25,6 +25,148 @@
   delegate_to: "{{ inventory_hostname }}"
 
 # Pre-install CAPI CRDs so Turtles controller can start. Without them the
+# controller crashes before the embedded CAPI Operator gets a chance to install them.
+- name: Pre-install CAPI core CRDs to unblock Turtles controller startup
+  shell: >-
+    kubectl --kubeconfig={{ rke2_kubeconfig }} apply
+    -f https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/core-components.yaml
+  changed_when: true
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Wait for Turtles controller to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: rancher-turtles-controller-manager
+    namespace: cattle-turtles-system
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    wait: yes
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 300
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Wait for Turtles CAPIProvider CRD to be established
+  shell: >-
+    kubectl --kubeconfig={{ rke2_kubeconfig }}
+    get crd capiproviders.turtles-capi.cattle.io
+    -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' 2>/dev/null
+  register: crd_established
+  until: crd_established.stdout == "True"
+  retries: 20
+  delay: 10
+  changed_when: false
+  delegate_to: "{{ inventory_hostname }}"
+
+# ── 2. Bootstrap CAPI core ────────────────────────────────────────────────────
+# The CoreProvider CR tells CAPI Operator to take ownership of CAPI core.
+# All other providers (rke2, docker, aws, metal3) are managed by Fleet via
+# rancher-fleet-clusters — register that GitRepo after deploy.
+
+- name: Create cluster-api CoreProvider CR
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: turtles-capi.cattle.io/v1alpha1
+      kind: CAPIProvider
+      metadata:
+        name: cluster-api
+        namespace: cattle-capi-system
+      spec:
+        name: cluster-api
+        type: core
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Remove bootstrap capi-system namespace (Turtles manages CAPI in cattle-capi-system)
+  kubernetes.core.k8s:
+    state: absent
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    kind: Namespace
+    name: capi-system
+    wait: false
+  delegate_to: "{{ inventory_hostname }}"
+
+# ── 3. Credential Secrets ─────────────────────────────────────────────────────
+# Credentials cannot live in the public rancher-fleet-clusters repo.
+# Ansible creates them here; Fleet-managed CAPIProviders reference them.
+
+- name: Ensure namespaces exist for credential Secrets
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ item }}"
+  loop:
+    - default
+    - capm3-system
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Create CAPA AWS credentials Secret
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: cluster-identity
+        namespace: default
+      type: Opaque
+      stringData:
+        AccessKeyID: "{{ capa_credentials.aws_access_key_id }}"
+        SecretAccessKey: "{{ capa_credentials.aws_secret_access_key }}"
+  delegate_to: "{{ inventory_hostname }}"
+  no_log: true
+
+- name: Create CAPM3 Ironic credentials Secret
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: ironic-credentials
+        namespace: capm3-system
+      type: Opaque
+      stringData:
+        IRONIC_URL: "{{ capm3_credentials.ironic_url }}"
+        IRONIC_INSPECTOR_URL: "{{ capm3_credentials.ironic_inspector_url }}"
+        IRONIC_USERNAME: "{{ capm3_credentials.ironic_username }}"
+        IRONIC_PASSWORD: "{{ capm3_credentials.ironic_password }}"
+  delegate_to: "{{ inventory_hostname }}"
+  no_log: true
+
+
+- name: Add Rancher Turtles Helm repository
+  kubernetes.core.helm_repository:
+    name: turtles
+    repo_url: https://rancher.github.io/turtles
+    state: present
+
+- name: Install Rancher Turtles via Helm
+  kubernetes.core.helm:
+    name: rancher-turtles
+    chart_ref: turtles/rancher-turtles
+    chart_version: "{{ turtles_config.version }}"
+    release_namespace: cattle-turtles-system
+    create_namespace: true
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    values:
+      cluster-api-operator:
+        cluster-api:
+          enabled: true
+    update_repo_cache: yes
+    wait: true
+    wait_timeout: 600s
+  delegate_to: "{{ inventory_hostname }}"
+
+# Pre-install CAPI CRDs so Turtles controller can start. Without them the
 # controller crashes (watches Cluster.cluster.x-k8s.io/v1beta1 at startup)
 # before the embedded CAPI Operator gets a chance to install them.
 - name: Pre-install CAPI core CRDs to unblock Turtles controller startup
