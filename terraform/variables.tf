@@ -22,6 +22,12 @@ variable "environment" {
   default     = "dev"
 }
 
+variable "existing_vpc_id" {
+  description = "ID of an existing VPC to use. Leave empty to create a new VPC. Useful when at the AWS VPC limit."
+  type        = string
+  default     = ""
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string
