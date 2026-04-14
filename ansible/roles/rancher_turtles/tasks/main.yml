@@ -68,7 +68,7 @@
   changed_when: false
   delegate_to: "{{ inventory_hostname }}"
 
-- name: Patch clusterctl-config ConfigMap to register rke2 and docker providers
+- name: Patch clusterctl-config ConfigMap to register rke2, docker, aws, and metal3 providers
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ rke2_kubeconfig }}"
@@ -90,6 +90,12 @@
           - name: docker
             type: InfrastructureProvider
             url: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/infrastructure-components-development.yaml"
+          - name: aws
+            type: InfrastructureProvider
+            url: "https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/{{ turtles_config.capa_version }}/infrastructure-components.yaml"
+          - name: metal3
+            type: InfrastructureProvider
+            url: "https://github.com/metal3-io/cluster-api-provider-metal3/releases/download/{{ turtles_config.capm3_version }}/infrastructure-components.yaml"
   delegate_to: "{{ inventory_hostname }}"
 
 - name: Restart Turtles controller to reload clusterctl config
@@ -126,7 +132,7 @@
     wait: false
   delegate_to: "{{ inventory_hostname }}"
 
-- name: Install CAPI providers (RKE2) via Turtles CAPIProvider
+- name: Install CAPI providers (RKE2 + CAPA + CAPM3) via Turtles CAPIProvider
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ rke2_kubeconfig }}"
@@ -166,6 +172,30 @@
           version: "{{ turtles_config.capd_version }}"
           fetchConfig:
             url: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/infrastructure-components-development.yaml"
+
+      - apiVersion: turtles-capi.cattle.io/v1alpha1
+        kind: CAPIProvider
+        metadata:
+          name: aws
+          namespace: capa-system
+        spec:
+          name: aws
+          type: infrastructure
+          version: "{{ turtles_config.capa_version }}"
+          fetchConfig:
+            url: "https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/{{ turtles_config.capa_version }}/infrastructure-components.yaml"
+
+      - apiVersion: turtles-capi.cattle.io/v1alpha1
+        kind: CAPIProvider
+        metadata:
+          name: metal3
+          namespace: capm3-system
+        spec:
+          name: metal3
+          type: infrastructure
+          version: "{{ turtles_config.capm3_version }}"
+          fetchConfig:
+            url: "https://github.com/metal3-io/cluster-api-provider-metal3/releases/download/{{ turtles_config.capm3_version }}/infrastructure-components.yaml"
   delegate_to: "{{ inventory_hostname }}"
 
 
@@ -178,10 +208,10 @@
       -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>/dev/null \
       | grep -cv "^Ready$" || true)
     echo "total=$TOTAL not_ready=$NOT_READY"
-    [ "$TOTAL" -ge 4 ] && [ "$NOT_READY" -eq 0 ] && exit 0 || exit 1
+    [ "$TOTAL" -ge 6 ] && [ "$NOT_READY" -eq 0 ] && exit 0 || exit 1
   register: providers_ready
   until: providers_ready.rc == 0
-  retries: 30
+  retries: 60
   delay: 20
   changed_when: false
   delegate_to: "{{ inventory_hostname }}"
@@ -201,10 +231,16 @@
       spec:
         repo: "{{ capi_git_repo_url }}"
         branch: "{{ capi_git_branch }}"
+        # Apply in dependency order: providers first, then ClusterClasses, then Clusters
         paths:
-          - cluster-templates/clusterclasses/docker-rke2
-          - cluster-templates/applications/lb
-          - cluster-templates/clusters
+          - providers/capa
+          - providers/capm3
+          - clusterclasses/aws-rke2
+          - clusterclasses/aws-kubeadm
+          - clusterclasses/metal3-rke2
+          - clusters/aws-rke2-example
+          - clusters/aws-kubeadm-example
+          - clusters/metal3-rke2-example
         targets:
           - clusterSelector: {}
   delegate_to: "{{ inventory_hostname }}"

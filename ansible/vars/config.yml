@@ -15,6 +15,8 @@ turtles_config:
   version: "v0.26.0"
   caprke2_version: "v0.21.1"  # latest v1beta1-compatible with Turtles v0.25.4 CAPI Operator
   capd_version: "v1.10.6"     # matches the CAPI CoreProvider version Turtles installs
+  capa_version: "v2.7.1"      # cluster-api-provider-aws (v1beta1 contract)
+  capm3_version: "v1.9.1"     # cluster-api-provider-metal3
 
 # Fleet GitRepo: points to the git repo that contains cluster-templates/
 # Set this to the HTTPS URL of the repository hosting this playbook.
