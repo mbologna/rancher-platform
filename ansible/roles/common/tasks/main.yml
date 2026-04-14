@@ -1,0 +1,80 @@
+---
+- name: Ensure a clean development directory on each run
+  file:
+    path: "{{ ansible_env.HOME }}/.rancher-dev"
+    state: absent
+
+- name: Re-create development directory structure
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ ansible_env.HOME }}/.rancher-dev"
+    - "{{ kubeconfig_dir }}"
+    - "{{ ansible_env.HOME }}/.rancher-dev/cluster-configs"
+    - /var/log/rancher-dev
+
+- name: Stop and disable firewalld on SUSE family systems
+  service:
+    name: firewalld
+    state: stopped
+    enabled: no
+  ignore_errors: yes
+  when: ansible_os_family == 'Suse'
+
+- name: Stop and disable ufw on Debian family systems
+  service:
+    name: ufw
+    state: stopped
+    enabled: no
+  ignore_errors: yes
+  when: ansible_os_family == 'Debian'
+
+- name: Install Docker (required for CAPD infrastructure provider)
+  package:
+    name: docker
+    state: present
+
+- name: Start and enable Docker
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Install development dependencies
+  package:
+    name:
+      - curl
+      - "{{ 'python311-pip' if ansible_os_family == 'Suse' else 'python3.11-pip' }}"
+      - jq
+      - git
+      - vim
+      - htop
+      - tree
+      - rsync
+      - wget
+      - unzip
+
+- name: Install required Python libraries for Ansible Kubernetes modules
+  pip:
+    name:
+      - PyYAML
+      - kubernetes
+    executable: pip3.11
+    state: present
+
+- name: Optimize system for container development
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: yes
+    sysctl_file: /etc/sysctl.d/99-container-dev.conf
+  loop:
+    - { name: 'fs.inotify.max_user_watches', value: '1048576' }
+    - { name: 'fs.inotify.max_user_instances', value: '1024' }
+    - { name: 'vm.max_map_count', value: '262144' }
+    - { name: 'net.core.somaxconn', value: '65535' }
+    - { name: 'net.ipv4.ip_local_port_range', value: '1024 65000' }
+  notify: reload sysctl

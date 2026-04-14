@@ -1,0 +1,47 @@
+---
+- name: Add Rancher Helm repositories
+  kubernetes.core.helm_repository:
+    name: "{{ item.name }}"
+    repo_url: "{{ item.url }}"
+    state: present
+  loop:
+    - { name: 'rancher-stable', url: 'https://releases.rancher.com/server-charts/stable' }
+    - { name: 'rancher-latest', url: 'https://releases.rancher.com/server-charts/latest' }
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Wait for ingress-nginx admission webhook to be ready
+  shell: |
+    kubectl --kubeconfig={{ rke2_kubeconfig }} -n kube-system \
+      get endpoints rke2-ingress-nginx-controller-admission \
+      -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null
+  register: nginx_webhook
+  until: nginx_webhook.stdout != ""
+  retries: 30
+  delay: 10
+  changed_when: false
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Install or upgrade Rancher via Helm
+  kubernetes.core.helm:
+    name: rancher
+    chart_ref: "rancher-{{ management_cluster_versions.rancher_channel | default('stable') }}/rancher"
+    release_namespace: cattle-system
+    create_namespace: true
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    values:
+      hostname: "{{ rancher_hostname }}"
+      replicas: 1
+      bootstrapPassword: "{{ rancher_bootstrap_password }}"
+      ingress:
+        tls:
+          source: rancher
+    update_repo_cache: yes
+    wait: true
+    wait_timeout: 600s
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Wait for Rancher Manager to be ready
+  include_tasks: "wait_for_rancher.yml"
+
+- name: Generate API token for automation
+  include_tasks: "generate_api_token.yml"

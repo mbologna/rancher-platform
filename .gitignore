@@ -1,0 +1,34 @@
+# Ansible
+*.retry
+*.log
+ansible_collections/
+
+# Python virtual environments
+/venv/
+/.venv/
+/env/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*~
+*.bak
+*.tmp
+
+# macOS generated files
+.DS_Store
+
+# Local inventory files (if you create them)
+ansible/inventory/local.yml
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/*.tfplan
+terraform/crash.log
+# Auto-generated inventory from Terraform (use -i to point manage.sh at it)
+terraform/generated/

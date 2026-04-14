@@ -1,0 +1,207 @@
+---
+# ── RKE2 ─────────────────────────────────────────────────────────────────────
+
+- name: Force-kill entire RKE2 service cgroup and all orphaned container processes
+  shell: |
+    # Kill the whole service cgroup first (covers shims still in cgroup)
+    systemctl kill --kill-who=all -s SIGKILL rke2-server 2>/dev/null || true
+    systemctl stop rke2-server 2>/dev/null || true
+    sleep 2
+
+    # Kill any remaining containerd-shim, kubelet, etcd, kube-* processes
+    for pid_dir in /proc/[0-9]*/exe; do
+      pid=$(echo "$pid_dir" | cut -d'/' -f3)
+      exe=$(readlink "$pid_dir" 2>/dev/null || true)
+      case "$exe" in
+        *containerd-shim*|*kubelet*|*kube-apiserver*|*kube-proxy*|*kube-scheduler*|*kube-controller*|*/etcd)
+          kill -9 "$pid" 2>/dev/null || true ;;
+      esac
+    done
+    sleep 3
+
+    # Free any processes still holding k8s ports
+    for port in 6443 2379 2380 10250 10257 10259; do
+      pid=$(ss -tlnp "sport = :$port" 2>/dev/null | awk 'NR>1{match($0,/pid=([0-9]+)/,a); if(a[1]) print a[1]}' | head -1)
+      [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null || true
+    done
+  args:
+    executable: /bin/bash
+  ignore_errors: true
+
+- name: Check for RKE2 uninstall script
+  stat:
+    path: /usr/local/bin/rke2-uninstall.sh
+  register: rke2_uninstall_script
+
+- name: Run RKE2 uninstall script
+  shell: /usr/local/bin/rke2-uninstall.sh
+  when: rke2_uninstall_script.stat.exists
+
+- name: Remove RKE2 binary and service manually if uninstall script was absent
+  shell: |
+    rm -f /usr/local/bin/rke2 /usr/local/bin/rke2-server /usr/local/bin/rke2-uninstall.sh
+    rm -f /etc/systemd/system/rke2-server.service /etc/systemd/system/rke2-agent.service
+    systemctl daemon-reload
+  when: not rke2_uninstall_script.stat.exists
+  ignore_errors: true
+
+# ── K3s ──────────────────────────────────────────────────────────────────────
+
+- name: Check for K3s server uninstall script
+  stat:
+    path: /usr/local/bin/k3s-uninstall.sh
+  register: k3s_uninstall_script
+
+- name: Run K3s server uninstall script
+  shell: /usr/local/bin/k3s-uninstall.sh
+  when: k3s_uninstall_script.stat.exists
+
+- name: Check for K3s agent uninstall script
+  stat:
+    path: /usr/local/bin/k3s-agent-uninstall.sh
+  register: k3s_agent_uninstall_script
+
+- name: Run K3s agent uninstall script
+  shell: /usr/local/bin/k3s-agent-uninstall.sh
+  when: k3s_agent_uninstall_script.stat.exists
+
+# ── Kind ─────────────────────────────────────────────────────────────────────
+
+- name: Check if Kind is installed
+  stat:
+    path: /usr/local/bin/kind
+  register: kind_binary
+
+- name: Delete all Kind clusters
+  shell: |
+    kind get clusters 2>/dev/null | while read -r name; do
+      echo "Deleting Kind cluster: $name"
+      kind delete cluster --name "$name"
+    done
+  when: kind_binary.stat.exists
+  ignore_errors: yes
+
+- name: Remove Kind binary
+  file:
+    path: /usr/local/bin/kind
+    state: absent
+  when: kind_binary.stat.exists
+
+# ── K3d ──────────────────────────────────────────────────────────────────────
+
+- name: Check if K3d is installed
+  stat:
+    path: /usr/local/bin/k3d
+  register: k3d_binary
+
+- name: Delete all K3d clusters
+  shell: |
+    k3d cluster list -o json 2>/dev/null \
+      | python3 -c "import sys,json; [print(c['name']) for c in json.load(sys.stdin)]" \
+      | while read -r name; do
+          echo "Deleting K3d cluster: $name"
+          k3d cluster delete "$name"
+        done
+  when: k3d_binary.stat.exists
+  ignore_errors: yes
+
+- name: Remove K3d binary
+  file:
+    path: /usr/local/bin/k3d
+    state: absent
+  when: k3d_binary.stat.exists
+
+# ── Docker: prune all containers, images, volumes, networks ──────────────────
+
+- name: Check if Docker is running
+  command: docker info
+  register: docker_running
+  changed_when: false
+  failed_when: false
+
+- name: Prune all Docker containers, images, volumes and networks
+  shell: docker system prune -af --volumes
+  when: docker_running.rc == 0
+
+- name: Ensure Docker is installed (SUSE family)
+  zypper:
+    name: docker
+    state: present
+  when: ansible_os_family == 'Suse' and docker_running.rc != 0
+
+- name: Ensure Docker is installed (Debian family)
+  apt:
+    name: docker.io
+    state: present
+    update_cache: yes
+  when: ansible_os_family == 'Debian' and docker_running.rc != 0
+
+- name: Ensure Docker is started and enabled
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Wait for Docker to be ready
+  command: docker info
+  register: docker_ready
+  retries: 5
+  delay: 10
+  until: docker_ready.rc == 0
+  changed_when: false
+
+# ── CNI iptables cleanup (stale DNAT rules from previous pods survive kills) ──
+
+- name: Flush and remove stale CNI iptables chains
+  shell: |
+    for table in nat filter; do
+      # Flush chains
+      for chain in $(iptables -t "$table" -L -n 2>/dev/null | awk '/^Chain (CNI|KUBE)/{print $2}'); do
+        iptables -t "$table" -F "$chain" 2>/dev/null || true
+      done
+      # Delete non-built-in chains
+      for chain in $(iptables -t "$table" -L -n 2>/dev/null | awk '/^Chain (CNI|KUBE)/{print $2}'); do
+        iptables -t "$table" -X "$chain" 2>/dev/null || true
+      done
+    done
+    # Remove CNI rules from built-in chains
+    iptables -t nat -D PREROUTING -m addrtype --dst-type LOCAL -j CNI-HOSTPORT-DNAT 2>/dev/null || true
+    iptables -t nat -D OUTPUT -m addrtype --dst-type LOCAL -j CNI-HOSTPORT-DNAT 2>/dev/null || true
+    iptables -t filter -D FORWARD -j KUBE-FORWARD 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  ignore_errors: true
+
+# ── Leftover Kubernetes data directories ─────────────────────────────────────
+
+- name: Unmount busy Kubernetes directories before removal
+  shell: |
+    for dir in /var/lib/kubelet /run/k3s; do
+      if mountpoint -q "$dir" 2>/dev/null || [ -d "$dir" ]; then
+        # Unmount all sub-mounts first (deepest first), then the directory itself
+        awk -v dir="$dir" '$2 ~ "^"dir {print $2}' /proc/mounts | sort -r | xargs -r umount -lf 2>/dev/null || true
+      fi
+    done
+  args:
+    executable: /bin/bash
+  ignore_errors: true
+
+- name: Remove leftover Kubernetes and Rancher data directories
+  shell: "rm -rf {{ item }}"
+  loop:
+    - /etc/rancher
+    - /var/lib/rancher
+    - /var/lib/kubelet
+    - /var/lib/etcd
+    - /run/k3s
+    - /run/flannel
+    - /etc/cni/net.d
+    - /opt/cni/bin
+  ignore_errors: true
+
+# ── Kubeconfigs ───────────────────────────────────────────────────────────────
+
+- name: Remove dev kubeconfig directory
+  file:
+    path: "{{ ansible_env.HOME }}/.rancher-dev"
+    state: absent

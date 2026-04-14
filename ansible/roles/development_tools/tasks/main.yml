@@ -1,0 +1,73 @@
+---
+- name: Create development helper scripts
+  copy:
+    content: "{{ item.content }}"
+    dest: "/usr/local/bin/{{ item.name }}"
+    mode: '0755'
+    force: no
+  loop:
+    - name: "rancher-logs"
+      content: |
+        #!/bin/bash
+        kubectl -n cattle-system logs -l app=rancher --tail=100 -f --kubeconfig={{ rke2_kubeconfig }}
+
+    - name: "cluster-status"
+      content: |
+        #!/bin/bash
+        echo "=== RKE2 Cluster Status ==="
+        echo "Rancher Manager URL: https://{{ rancher_hostname }}"
+        echo ""
+        echo "=== Nodes ==="
+        kubectl --kubeconfig={{ rke2_kubeconfig }} get nodes -o wide
+        echo ""
+        echo "=== Rancher Manager Pods ==="
+        kubectl --kubeconfig={{ rke2_kubeconfig }} get pods -n cattle-system
+        echo ""
+        echo "=== cert-manager Pods ==="
+        kubectl --kubeconfig={{ rke2_kubeconfig }} get pods -n cert-manager
+
+    - name: "port-forward-rancher"
+      content: |
+        #!/bin/bash
+        echo "Port forwarding Rancher Manager (local access on port 8443)"
+        kubectl --kubeconfig={{ rke2_kubeconfig }} -n cattle-system port-forward svc/rancher 8443:443
+
+    - name: "cleanup-rancher"
+      content: |
+        #!/bin/bash
+        set -e
+        echo "--- Removing Rancher and cert-manager ---"
+        helm uninstall rancher -n cattle-system --kubeconfig={{ rke2_kubeconfig }} || true
+        helm uninstall cert-manager -n cert-manager --kubeconfig={{ rke2_kubeconfig }} || true
+        kubectl --kubeconfig={{ rke2_kubeconfig }} delete namespace cattle-system cert-manager --ignore-not-found
+        echo "--- Done ---"
+
+- name: Create development profile script
+  copy:
+    content: |
+      #!/bin/bash
+      # Development environment profile
+
+      export KUBECONFIG="{{ rke2_kubeconfig }}"
+      export RANCHER_URL="https://{{ rancher_hostname }}"
+
+      alias k='kubectl'
+      alias rancher-ui='echo "Rancher Manager: $RANCHER_URL (admin/{{ rancher_bootstrap_password }})"'
+
+      echo "=== Development Environment Loaded ==="
+      echo "KUBECONFIG: $KUBECONFIG"
+      echo "Rancher Manager: $RANCHER_URL"
+      echo "Available commands: cluster-status, rancher-logs, port-forward-rancher, cleanup-rancher"
+    dest: "{{ ansible_env.HOME }}/.rancher-dev/dev-env-profile.sh"
+    mode: '0644'
+
+- name: Display development tools information
+  debug:
+    msg:
+      - "Development tools installed successfully"
+      - "Load environment: source {{ ansible_env.HOME }}/.rancher-dev/dev-env-profile.sh"
+      - "Key commands:"
+      - "  cluster-status        - Show cluster overview"
+      - "  rancher-logs          - Stream Rancher Manager logs"
+      - "  port-forward-rancher  - Local Rancher access (port 8443)"
+      - "  cleanup-rancher       - Remove Rancher and cert-manager"
