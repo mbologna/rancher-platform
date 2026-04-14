@@ -20,7 +20,7 @@ turtles_config:
 
 # Fleet GitRepo: points to the git repo that contains cluster-templates/
 # Set this to the HTTPS URL of the repository hosting this playbook.
-capi_git_repo_url: "https://github.com/YOUR_ORG/YOUR_REPO"
+capi_git_repo_url: "https://github.com/mbologna/rancher-fleet-clusters"
 capi_git_branch: "main"
 # Names of CAPI workload clusters to wait for (must match cluster-templates/clusters/*.yaml)
 capi_clusters:
