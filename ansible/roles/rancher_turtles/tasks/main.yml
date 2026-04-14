@@ -233,11 +233,17 @@
         branch: "{{ capi_git_branch }}"
         # Apply in dependency order: providers first, then ClusterClasses, then Clusters
         paths:
+          # Credentials first — Secrets must exist before providers start
+          - credentials/aws
+          - credentials/metal3
+          # Providers next — install CAPA and CAPM3 controllers
           - providers/capa
           - providers/capm3
+          # Then ClusterClasses — topology definitions
           - clusterclasses/aws-rke2
           - clusterclasses/aws-kubeadm
           - clusterclasses/metal3-rke2
+          # Finally cluster instances
           - clusters/aws-rke2-example
           - clusters/aws-kubeadm-example
           - clusters/metal3-rke2-example
