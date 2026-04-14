@@ -71,10 +71,12 @@ module "ec2" {
   tags                = local.common_tags
 }
 
-# Write an Ansible inventory file populated with the real IP after apply
+# Write a ready-to-use Ansible inventory into terraform/generated/ — never overwrites the
+# hand-edited ansible/inventory/hosts.yml so the Ansible role stays a standalone building block.
 resource "local_file" "ansible_inventory" {
-  filename = "${path.module}/../ansible/inventory/hosts.yml"
-  content  = templatefile("${path.module}/templates/hosts.yml.tftpl", {
+  filename        = "${path.module}/generated/hosts.yml"
+  file_permission = "0600"
+  content = templatefile("${path.module}/templates/hosts.yml.tftpl", {
     public_ip    = module.ec2.public_ip
     ansible_user = var.ansible_user
     ssh_key_path = var.public_key_path != "" ? replace(var.public_key_path, ".pub", "") : "~/.ssh/id_rsa"

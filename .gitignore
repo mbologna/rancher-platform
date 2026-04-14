@@ -30,3 +30,5 @@ terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/*.tfplan
 terraform/crash.log
+# Auto-generated inventory from Terraform (use -i to point manage.sh at it)
+terraform/generated/
