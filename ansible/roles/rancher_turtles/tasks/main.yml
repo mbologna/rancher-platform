@@ -216,7 +216,72 @@
   changed_when: false
   delegate_to: "{{ inventory_hostname }}"
 
-# ── 3. Create Fleet GitRepo pointing at cluster-templates/ ───────────────────
+# ── 3. Apply provider credential Secrets directly (not via Fleet — repo is public) ──
+
+- name: Ensure capa-system namespace exists
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: capa-system
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Ensure capm3-system namespace exists
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: capm3-system
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Create CAPA AWS credentials Secret
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: capa-manager-bootstrap-credentials
+        namespace: capa-system
+      type: Opaque
+      stringData:
+        credentials: |
+          [default]
+          aws_access_key_id = {{ capa_credentials.aws_access_key_id }}
+          aws_secret_access_key = {{ capa_credentials.aws_secret_access_key }}
+          {% if capa_credentials.aws_session_token | length > 0 %}
+          aws_session_token = {{ capa_credentials.aws_session_token }}
+          {% endif %}
+  delegate_to: "{{ inventory_hostname }}"
+  no_log: true
+
+- name: Create CAPM3 Ironic credentials Secret
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: ironic-credentials
+        namespace: capm3-system
+      type: Opaque
+      stringData:
+        IRONIC_URL: "{{ capm3_credentials.ironic_url }}"
+        IRONIC_INSPECTOR_URL: "{{ capm3_credentials.ironic_inspector_url }}"
+        IRONIC_USERNAME: "{{ capm3_credentials.ironic_username }}"
+        IRONIC_PASSWORD: "{{ capm3_credentials.ironic_password }}"
+  delegate_to: "{{ inventory_hostname }}"
+  no_log: true
+
+# ── 4. Create Fleet GitRepo pointing at the public cluster templates repo ─────
 
 - name: Create Fleet GitRepo for CAPI cluster templates
   kubernetes.core.k8s:
@@ -231,7 +296,7 @@
       spec:
         repo: "{{ capi_git_repo_url }}"
         branch: "{{ capi_git_branch }}"
-        # Apply in dependency order: providers first, then ClusterClasses, then Clusters
+        # Credentials are applied by Ansible above — Fleet only manages topology
         paths:
           - providers/capa
           - providers/capm3
