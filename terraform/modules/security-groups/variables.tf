@@ -9,7 +9,26 @@ variable "vpc_id" {
 }
 
 variable "allowed_ssh_cidrs" {
-  description = "CIDR blocks allowed to reach port 22. Restrict to your IP in production."
+  description = "CIDRs allowed SSH (port 22). Should be your operator IP only."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "allowed_admin_cidrs" {
+  description = "CIDRs allowed Rancher web UI (ports 80/443). Should be your IP only."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "allowed_cluster_cidrs" {
+  description = <<-EOT
+    CIDRs for downstream CAPI cluster nodes. These need to reach:
+      - 443   (Rancher registration / cluster-agent callbacks)
+      - 6443  (Kubernetes API — kubeconfig access and CAPI reconciliation)
+      - 9345  (RKE2 supervisor API)
+      - 30000-32767 (Fleet + CAPI webhook NodePorts)
+    Typically the VPC CIDR of each downstream cluster's AWS region.
+  EOT
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }

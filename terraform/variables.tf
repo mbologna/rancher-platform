@@ -35,7 +35,23 @@ variable "subnet_cidr" {
 }
 
 variable "allowed_ssh_cidrs" {
-  description = "CIDR blocks allowed SSH access. Restrict to your IP in production."
+  description = "CIDRs allowed SSH (port 22). Should be your operator IP only."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "allowed_admin_cidrs" {
+  description = "CIDRs allowed Rancher web UI (ports 80/443/6443). Should be your IP only."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "allowed_cluster_cidrs" {
+  description = <<-EOT
+    CIDRs for downstream CAPI cluster nodes (registration + webhook callbacks).
+    Typically the VPC CIDR(s) where your downstream clusters will run.
+    These are granted access to: 80, 443, 6443, 9345, 30000-32767, 8472/udp.
+  EOT
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }

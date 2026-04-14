@@ -52,10 +52,12 @@ module "vpc" {
 module "security_groups" {
   source = "./modules/security-groups"
 
-  name              = var.project_name
-  vpc_id            = module.vpc.vpc_id
-  allowed_ssh_cidrs = var.allowed_ssh_cidrs
-  tags              = local.common_tags
+  name                  = var.project_name
+  vpc_id                = module.vpc.vpc_id
+  allowed_ssh_cidrs     = var.allowed_ssh_cidrs
+  allowed_admin_cidrs   = var.allowed_admin_cidrs
+  allowed_cluster_cidrs = var.allowed_cluster_cidrs
+  tags                  = local.common_tags
 }
 
 module "ec2" {
