@@ -271,3 +271,75 @@
     msg: "Cluster '{{ item.item }}' is active in Rancher Manager"
   loop: "{{ rancher_cluster_check.results }}"
   when: capi_clusters | length > 0
+
+# ── 6. Post-import fixes for AWS workload clusters ───────────────────────────
+# After Rancher imports a CAPI-provisioned cluster, cattle-cluster-agent is
+# deployed on the workload cluster. In same-VPC scenarios, the Rancher hostname
+# resolves to the management EC2's public IP, which causes hairpin routing
+# failures from within the VPC (AWS does not allow EC2→EC2 via their own EIP).
+# Fix: patch cattle-cluster-agent with a hostAlias pointing the Rancher hostname
+# to the management EC2's private IP.
+#
+# Additionally, AWS CCM is required to set providerID on nodes and remove the
+# cloud-provider uninitialized taint. Deploy it if not already present.
+
+- name: Get workload cluster kubeconfig (CAPI-managed clusters only)
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: "{{ item }}-kubeconfig"
+    namespace: default
+    kubeconfig: "{{ rke2_kubeconfig }}"
+  register: workload_kubeconfig_secret
+  loop: "{{ capi_clusters | select('match', 'aws-.*') | list }}"
+  when: capi_clusters | length > 0
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Write workload kubeconfigs to temp files
+  copy:
+    content: "{{ (item.resources[0].data.value | b64decode) }}"
+    dest: "/tmp/{{ item.item }}-kubeconfig.yaml"
+    mode: '0600'
+  loop: "{{ workload_kubeconfig_secret.results }}"
+  when:
+    - capi_clusters | length > 0
+    - item.resources is defined
+    - item.resources | length > 0
+  no_log: true
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Patch cattle-cluster-agent with internal Rancher hostname alias
+  kubernetes.core.k8s:
+    kubeconfig: "/tmp/{{ item.item }}-kubeconfig.yaml"
+    api_version: apps/v1
+    kind: Deployment
+    name: cattle-cluster-agent
+    namespace: cattle-system
+    strategic_merge_patch:
+      spec:
+        template:
+          spec:
+            hostAliases:
+              - ip: "{{ ansible_default_ipv4.address }}"
+                hostnames:
+                  - "{{ rancher_hostname }}"
+  loop: "{{ workload_kubeconfig_secret.results }}"
+  when:
+    - capi_clusters | length > 0
+    - item.resources is defined
+    - item.resources | length > 0
+  ignore_errors: true   # cattle-system namespace may not exist yet on first run
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Deploy AWS Cloud Controller Manager on workload clusters
+  kubernetes.core.k8s:
+    kubeconfig: "/tmp/{{ item.item }}-kubeconfig.yaml"
+    state: present
+    definition: "{{ lookup('template', 'aws-ccm.yml.j2') }}"
+  loop: "{{ workload_kubeconfig_secret.results }}"
+  when:
+    - capi_clusters | length > 0
+    - item.resources is defined
+    - item.resources | length > 0
+  ignore_errors: true
+  delegate_to: "{{ inventory_hostname }}"
