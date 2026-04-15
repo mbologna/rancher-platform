@@ -145,7 +145,7 @@
           "\naws_secret_access_key = " + capa_credentials.aws_secret_access_key + "\n") | b64encode }}
   no_log: true
 
-- name: Create CAPA AWS credentials Secret (used by cluster-identity for AWSClusterStaticIdentity)
+- name: Create CAPA AWS credentials Secret in capa-system (referenced by AWSClusterStaticIdentity)
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ rke2_kubeconfig }}"
@@ -153,8 +153,10 @@
       apiVersion: v1
       kind: Secret
       metadata:
+        # CAPA v2 looks for the AWSClusterStaticIdentity secretRef in the controller's
+        # namespace (capa-system), not the cluster's namespace.
         name: cluster-identity
-        namespace: default
+        namespace: capa-system
       type: Opaque
       stringData:
         AccessKeyID: "{{ capa_credentials.aws_access_key_id }}"
