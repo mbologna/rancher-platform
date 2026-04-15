@@ -23,6 +23,18 @@
   ignore_errors: yes
   when: ansible_os_family == 'Suse'
 
+- name: Remove third-party repos with invalid/expired GPG keys on SUSE (avoids zypper rc=106)
+  command: zypper removerepo "{{ item }}"
+  ignore_errors: yes
+  loop:
+    - innovators
+  when: ansible_os_family == 'Suse'
+
+- name: Refresh zypper repositories
+  command: zypper --non-interactive --gpg-auto-import-keys refresh
+  when: ansible_os_family == 'Suse'
+  changed_when: false
+
 - name: Stop and disable ufw on Debian family systems
   service:
     name: ufw
@@ -62,6 +74,13 @@
       - PyYAML
       - kubernetes
     executable: pip3.11
+    state: present
+
+- name: Add /etc/hosts entry for Rancher hostname (avoids hairpin NAT issues in AWS)
+  lineinfile:
+    path: /etc/hosts
+    regexp: "{{ rancher_hostname }}"
+    line: "{{ ansible_default_ipv4.address }} {{ rancher_hostname }}"
     state: present
 
 - name: Optimize system for container development

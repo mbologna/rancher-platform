@@ -13,37 +13,22 @@ rke2_config:
 # Rancher Turtles (CAPI integration)
 turtles_config:
   version: "v0.26.0"
-  caprke2_version: "v0.21.1"  # latest v1beta1-compatible with Turtles v0.25.4 CAPI Operator
-  capd_version: "v1.10.6"     # matches the CAPI CoreProvider version Turtles installs
-  capa_version: "v2.7.1"      # cluster-api-provider-aws (v1beta1 contract)
-  capm3_version: "v1.9.1"     # cluster-api-provider-metal3
+  caprke2_version: "v0.24.2"  # v1beta2 contract — compatible with Turtles v0.26.0 (CAPI Operator v0.26.0)
+  capd_version: "v1.12.5"     # matches CAPI core version bundled in Turtles v0.26.0
+  capa_version: "v2.10.2"     # cluster-api-provider-aws (v1beta2 contract)
+  capm3_version: "v1.12.3"    # cluster-api-provider-metal3
 
 # Fleet GitRepo: points to the public git repo containing cluster templates
 # The public repo contains NO credentials — they are created below by Ansible.
 capi_git_repo_url: "https://github.com/mbologna/rancher-fleet-clusters"
 capi_git_branch: "main"
 
-# CAPA (AWS) credentials — applied directly to the cluster by Ansible (not via Fleet)
-# Fill these in before running ./manage.sh deploy
-capa_credentials:
-  aws_access_key_id: "CHANGE_ME"
-  aws_secret_access_key: "CHANGE_ME"
-  aws_session_token: ""       # optional: leave empty if not using MFA/assumed roles
-  aws_region: "eu-west-1"
+# ── Credentials ───────────────────────────────────────────────────────────────
+# Credentials are NOT stored here to avoid accidental git commits.
+# Copy ansible/vars/secrets.yml.example → ansible/vars/secrets.yml and fill in.
+# secrets.yml is gitignored.
 
-# CAPM3 (Metal3 / Ironic) credentials — applied directly by Ansible
-# Leave empty strings if you are not using Metal3
-capm3_credentials:
-  ironic_url: "http://CHANGE_ME:6385/v1/"
-  ironic_inspector_url: "http://CHANGE_ME:5050/v1/"
-  ironic_username: "CHANGE_ME"
-  ironic_password: "CHANGE_ME"
-
-# Names of CAPI workload clusters to wait for (must match clusters/ in rancher-fleet-clusters)
-capi_clusters:
-  - aws-rke2-example
-  - aws-kubeadm-example
-  - metal3-rke2-example
-
-# Default password for the Rancher admin user
-rancher_bootstrap_password: "mbologna"
+# Names of CAPI workload clusters to wait for after provisioning.
+# Leave empty for platform-only setup. Add cluster names when running
+# a full end-to-end deployment that provisions downstream clusters.
+capi_clusters: []

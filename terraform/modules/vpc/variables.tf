@@ -1,3 +1,9 @@
+variable "existing_vpc_id" {
+  description = "ID of an existing VPC to use. Leave empty to create a new VPC (default). Use when at the VPC limit."
+  type        = string
+  default     = ""
+}
+
 variable "name" {
   description = "Prefix applied to all resource names"
   type        = string

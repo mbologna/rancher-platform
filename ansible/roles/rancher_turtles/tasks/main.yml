@@ -24,16 +24,6 @@
     wait_timeout: 600s
   delegate_to: "{{ inventory_hostname }}"
 
-# Pre-install CAPI CRDs so Turtles controller can start. Without them the
-# controller crashes (watches Cluster.cluster.x-k8s.io/v1beta1 at startup)
-# before the embedded CAPI Operator gets a chance to install them.
-- name: Pre-install CAPI core CRDs to unblock Turtles controller startup
-  shell: |
-    kubectl --kubeconfig={{ rke2_kubeconfig }} apply \
-      -f https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/core-components.yaml
-  changed_when: true
-  delegate_to: "{{ inventory_hostname }}"
-
 - name: Wait for Turtles controller to be ready
   kubernetes.core.k8s_info:
     api_version: apps/v1
@@ -48,25 +38,22 @@
     wait_timeout: 300
   delegate_to: "{{ inventory_hostname }}"
 
-# ── 2. Install CAPI Providers ─────────────────────────────────────────────────
-# Turtles uses its own CAPIProvider CRD (turtles-capi.cattle.io/v1alpha1).
-# Custom providers (rke2, docker) must be registered in clusterctl-config first.
-# IMPORTANT version constraints:
-#   - CAPRKE2 ≤ v0.21.x uses v1beta1 contract (compatible with Turtles v0.25.4)
-#   - CAPRKE2 ≥ v0.22.x uses v1beta2 (incompatible — CAPI Operator rejects it)
-#   - capd_version must match the CAPI CoreProvider version Turtles installs
-
 - name: Wait for Turtles CAPIProvider CRD to be established
-  shell: |
-    kubectl --kubeconfig={{ rke2_kubeconfig }} \
-      get crd capiproviders.turtles-capi.cattle.io \
-      -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' 2>/dev/null
+  shell: >-
+    kubectl --kubeconfig={{ rke2_kubeconfig }}
+    get crd capiproviders.turtles-capi.cattle.io
+    -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' 2>/dev/null
   register: crd_established
   until: crd_established.stdout == "True"
   retries: 20
   delay: 10
   changed_when: false
   delegate_to: "{{ inventory_hostname }}"
+
+# ── 2. Bootstrap CAPI core ────────────────────────────────────────────────────
+# The CoreProvider CR tells CAPI Operator to take ownership of CAPI core.
+# All other providers (rke2, docker, aws, metal3) are managed by Fleet via
+# rancher-fleet-clusters — register that GitRepo after deploy.
 
 - name: Patch clusterctl-config ConfigMap to register rke2, docker, aws, and metal3 providers
   kubernetes.core.k8s:
@@ -108,7 +95,7 @@
   changed_when: true
   delegate_to: "{{ inventory_hostname }}"
 
-- name: Create cluster-api CoreProvider CR (triggers CAPI Operator to manage CAPI)
+- name: Create cluster-api CoreProvider CR (triggers CAPI Operator to manage CAPI core)
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ rke2_kubeconfig }}"
@@ -132,93 +119,11 @@
     wait: false
   delegate_to: "{{ inventory_hostname }}"
 
-- name: Install CAPI providers (RKE2 + CAPA + CAPM3) via Turtles CAPIProvider
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      - apiVersion: turtles-capi.cattle.io/v1alpha1
-        kind: CAPIProvider
-        metadata:
-          name: rke2-bootstrap
-          namespace: cattle-turtles-system
-        spec:
-          name: rke2
-          type: bootstrap
-          version: "{{ turtles_config.caprke2_version }}"
-          fetchConfig:
-            url: "https://github.com/rancher/cluster-api-provider-rke2/releases/download/{{ turtles_config.caprke2_version }}/bootstrap-components.yaml"
+# ── 3. Credential Secrets ─────────────────────────────────────────────────────
+# Credentials cannot live in the public rancher-fleet-clusters repo.
+# Ansible creates them here; Fleet-managed CAPIProviders reference them.
 
-      - apiVersion: turtles-capi.cattle.io/v1alpha1
-        kind: CAPIProvider
-        metadata:
-          name: rke2-control-plane
-          namespace: cattle-turtles-system
-        spec:
-          name: rke2
-          type: controlPlane
-          version: "{{ turtles_config.caprke2_version }}"
-          fetchConfig:
-            url: "https://github.com/rancher/cluster-api-provider-rke2/releases/download/{{ turtles_config.caprke2_version }}/control-plane-components.yaml"
-
-      - apiVersion: turtles-capi.cattle.io/v1alpha1
-        kind: CAPIProvider
-        metadata:
-          name: docker
-          namespace: cattle-turtles-system
-        spec:
-          name: docker
-          type: infrastructure
-          version: "{{ turtles_config.capd_version }}"
-          fetchConfig:
-            url: "https://github.com/kubernetes-sigs/cluster-api/releases/download/{{ turtles_config.capd_version }}/infrastructure-components-development.yaml"
-
-      - apiVersion: turtles-capi.cattle.io/v1alpha1
-        kind: CAPIProvider
-        metadata:
-          name: aws
-          namespace: capa-system
-        spec:
-          name: aws
-          type: infrastructure
-          version: "{{ turtles_config.capa_version }}"
-          fetchConfig:
-            url: "https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/{{ turtles_config.capa_version }}/infrastructure-components.yaml"
-
-      - apiVersion: turtles-capi.cattle.io/v1alpha1
-        kind: CAPIProvider
-        metadata:
-          name: metal3
-          namespace: capm3-system
-        spec:
-          name: metal3
-          type: infrastructure
-          version: "{{ turtles_config.capm3_version }}"
-          fetchConfig:
-            url: "https://github.com/metal3-io/cluster-api-provider-metal3/releases/download/{{ turtles_config.capm3_version }}/infrastructure-components.yaml"
-  delegate_to: "{{ inventory_hostname }}"
-
-
-- name: Wait for CAPI providers to be installed and ready
-  shell: |
-    TOTAL=$(kubectl --kubeconfig={{ rke2_kubeconfig }} \
-      get capiproviders -A --no-headers 2>/dev/null | wc -l | tr -d ' ')
-    NOT_READY=$(kubectl --kubeconfig={{ rke2_kubeconfig }} \
-      get capiproviders -A \
-      -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>/dev/null \
-      | grep -cv "^Ready$" || true)
-    echo "total=$TOTAL not_ready=$NOT_READY"
-    [ "$TOTAL" -ge 6 ] && [ "$NOT_READY" -eq 0 ] && exit 0 || exit 1
-  register: providers_ready
-  until: providers_ready.rc == 0
-  retries: 60
-  delay: 20
-  changed_when: false
-  delegate_to: "{{ inventory_hostname }}"
-
-# ── 3. Apply provider credential Secrets directly (not via Fleet — repo is public) ──
-
-- name: Ensure capa-system namespace exists
+- name: Ensure namespaces exist for credential Secrets
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ rke2_kubeconfig }}"
@@ -226,21 +131,21 @@
       apiVersion: v1
       kind: Namespace
       metadata:
-        name: capa-system
+        name: "{{ item }}"
+  loop:
+    - default
+    - capa-system
+    - capm3-system
   delegate_to: "{{ inventory_hostname }}"
 
-- name: Ensure capm3-system namespace exists
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: capm3-system
-  delegate_to: "{{ inventory_hostname }}"
+- name: Generate base64-encoded AWS credentials for CAPA controller
+  set_fact:
+    capa_b64_credentials: >-
+      {{ ("[default]\naws_access_key_id = " + capa_credentials.aws_access_key_id +
+          "\naws_secret_access_key = " + capa_credentials.aws_secret_access_key + "\n") | b64encode }}
+  no_log: true
 
-- name: Create CAPA AWS credentials Secret
+- name: Create CAPA AWS credentials Secret in capa-system (referenced by AWSClusterStaticIdentity)
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ rke2_kubeconfig }}"
@@ -248,17 +153,30 @@
       apiVersion: v1
       kind: Secret
       metadata:
-        name: capa-manager-bootstrap-credentials
+        # CAPA v2 looks for the AWSClusterStaticIdentity secretRef in the controller's
+        # namespace (capa-system), not the cluster's namespace.
+        name: cluster-identity
         namespace: capa-system
       type: Opaque
       stringData:
-        credentials: |
-          [default]
-          aws_access_key_id = {{ capa_credentials.aws_access_key_id }}
-          aws_secret_access_key = {{ capa_credentials.aws_secret_access_key }}
-          {% if capa_credentials.aws_session_token | length > 0 %}
-          aws_session_token = {{ capa_credentials.aws_session_token }}
-          {% endif %}
+        AccessKeyID: "{{ capa_credentials.aws_access_key_id }}"
+        SecretAccessKey: "{{ capa_credentials.aws_secret_access_key }}"
+  delegate_to: "{{ inventory_hostname }}"
+  no_log: true
+
+- name: Create CAPA credentials Secret for CAPIProvider variable substitution
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: capa-credentials
+        namespace: capa-system
+      type: Opaque
+      stringData:
+        AWS_B64ENCODED_CREDENTIALS: "{{ capa_b64_credentials }}"
   delegate_to: "{{ inventory_hostname }}"
   no_log: true
 
@@ -281,7 +199,10 @@
   delegate_to: "{{ inventory_hostname }}"
   no_log: true
 
-# ── 4. Create Fleet GitRepo pointing at the public cluster templates repo ─────
+# ── 4. Register Fleet GitRepo for cluster templates ──────────────────────────
+# Creates a Fleet GitRepo pointing to the public rancher-fleet-clusters repo.
+# keepResources: true ensures Fleet never deletes CAPI resources when the
+# GitRepo is deleted or paths change (avoids accidental cluster teardown).
 
 - name: Create Fleet GitRepo for CAPI cluster templates
   kubernetes.core.k8s:
@@ -296,33 +217,20 @@
       spec:
         repo: "{{ capi_git_repo_url }}"
         branch: "{{ capi_git_branch }}"
-        # Credentials are applied by Ansible above — Fleet only manages topology
         paths:
           - providers/capa
           - providers/capm3
           - clusterclasses/aws-rke2
-          - clusterclasses/aws-kubeadm
           - clusterclasses/metal3-rke2
           - clusters/aws-rke2-example
-          - clusters/aws-kubeadm-example
+          - clusters/aws-eks-example
           - clusters/metal3-rke2-example
+        keepResources: true
         targets:
           - clusterSelector: {}
   delegate_to: "{{ inventory_hostname }}"
 
-- name: Wait for Fleet GitRepo to become active
-  shell: |
-    kubectl --kubeconfig={{ rke2_kubeconfig }} \
-      get gitrepo capi-cluster-templates -n fleet-local \
-      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null
-  register: gitrepo_ready
-  until: gitrepo_ready.stdout == "True"
-  retries: 30
-  delay: 20
-  changed_when: false
-  delegate_to: "{{ inventory_hostname }}"
-
-# ── 4. Wait for CAPI clusters to be provisioned ──────────────────────────────
+# ── 5. Wait for CAPI clusters to be provisioned ──────────────────────────────
 
 - name: Wait for each CAPI cluster to reach Provisioned phase
   shell: |
@@ -335,6 +243,7 @@
   delay: 30
   changed_when: false
   loop: "{{ capi_clusters }}"
+  when: capi_clusters | length > 0
   delegate_to: "{{ inventory_hostname }}"
 
 # ── 5. Wait for clusters to appear as imported in Rancher ────────────────────
@@ -354,9 +263,84 @@
   retries: 40
   delay: 30
   loop: "{{ capi_clusters }}"
+  when: capi_clusters | length > 0
   delegate_to: "{{ inventory_hostname }}"
 
 - name: Display imported clusters
   debug:
     msg: "Cluster '{{ item.item }}' is active in Rancher Manager"
   loop: "{{ rancher_cluster_check.results }}"
+  when: capi_clusters | length > 0
+
+# ── 6. Post-import fixes for AWS workload clusters ───────────────────────────
+# After Rancher imports a CAPI-provisioned cluster, cattle-cluster-agent is
+# deployed on the workload cluster. In same-VPC scenarios, the Rancher hostname
+# resolves to the management EC2's public IP, which causes hairpin routing
+# failures from within the VPC (AWS does not allow EC2→EC2 via their own EIP).
+# Fix: patch cattle-cluster-agent with a hostAlias pointing the Rancher hostname
+# to the management EC2's private IP.
+#
+# Additionally, AWS CCM is required to set providerID on nodes and remove the
+# cloud-provider uninitialized taint. Deploy it if not already present.
+
+- name: Get workload cluster kubeconfig (CAPI-managed clusters only)
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: "{{ item }}-kubeconfig"
+    namespace: default
+    kubeconfig: "{{ rke2_kubeconfig }}"
+  register: workload_kubeconfig_secret
+  loop: "{{ capi_clusters | select('match', 'aws-.*') | list }}"
+  when: capi_clusters | length > 0
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Write workload kubeconfigs to temp files
+  copy:
+    content: "{{ (item.resources[0].data.value | b64decode) }}"
+    dest: "/tmp/{{ item.item }}-kubeconfig.yaml"
+    mode: '0600'
+  loop: "{{ workload_kubeconfig_secret.results }}"
+  when:
+    - capi_clusters | length > 0
+    - item.resources is defined
+    - item.resources | length > 0
+  no_log: true
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Patch cattle-cluster-agent with internal Rancher hostname alias
+  kubernetes.core.k8s:
+    kubeconfig: "/tmp/{{ item.item }}-kubeconfig.yaml"
+    api_version: apps/v1
+    kind: Deployment
+    name: cattle-cluster-agent
+    namespace: cattle-system
+    strategic_merge_patch:
+      spec:
+        template:
+          spec:
+            hostAliases:
+              - ip: "{{ ansible_default_ipv4.address }}"
+                hostnames:
+                  - "{{ rancher_hostname }}"
+  loop: "{{ workload_kubeconfig_secret.results }}"
+  when:
+    - capi_clusters | length > 0
+    - item.resources is defined
+    - item.resources | length > 0
+  ignore_errors: true   # cattle-system namespace may not exist yet on first run
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Deploy AWS Cloud Controller Manager on workload clusters
+  kubernetes.core.k8s:
+    kubeconfig: "/tmp/{{ item.item }}-kubeconfig.yaml"
+    state: present
+    definition: "{{ lookup('template', 'aws-ccm.yml.j2') }}"
+  loop: "{{ workload_kubeconfig_secret.results }}"
+  when:
+    - capi_clusters | length > 0
+    - item.resources is defined
+    - item.resources | length > 0
+    - "'eks' not in item.item"   # EKS manages CCM automatically; skip for EKS clusters
+  ignore_errors: true
+  delegate_to: "{{ inventory_hostname }}"
