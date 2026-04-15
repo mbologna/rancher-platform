@@ -13,7 +13,26 @@ root_volume_size_gb = 100
 public_key_path     = "~/.ssh/id_rsa.pub"
 ansible_user        = "ec2-user"
 
-# Network — restrict SSH to your IP for security
-allowed_ssh_cidrs   = ["YOUR_IP/32"]
+# Network
 vpc_cidr            = "10.0.0.0/16"
 subnet_cidr         = "10.0.1.0/24"
+
+# ── Access control ────────────────────────────────────────────────────────────
+# Find your public IP: curl -s https://checkip.amazonaws.com
+
+# SSH access — your operator machine only
+allowed_ssh_cidrs     = ["YOUR_IP/32"]
+
+# Rancher web UI (80/443) and kubectl (6443) — your operator machine only
+allowed_admin_cidrs   = ["YOUR_IP/32"]
+
+# Downstream CAPI cluster nodes — needed for:
+#   - Rancher cluster-agent registration (443)
+#   - CAPI reconciliation callbacks (443, 6443)
+#   - RKE2 supervisor (9345)
+#   - Fleet/CAPI webhooks via NodePorts (30000-32767)
+# Set to the VPC CIDR(s) of the AWS region(s) where downstream clusters run.
+# If clusters are in the same region, you can use the same VPC CIDR as above.
+# Example: two downstream regions
+# allowed_cluster_cidrs = ["10.1.0.0/16", "10.2.0.0/16"]
+allowed_cluster_cidrs = ["DOWNSTREAM_VPC_CIDR/16"]

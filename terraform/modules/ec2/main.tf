@@ -1,16 +1,21 @@
-# Data source: latest SLES 15 SP6 AMI published by SUSE
-data "aws_ami" "sles" {
+# Data source: latest openSUSE Leap 15.6 AMI published by SUSE (free, no subscription required)
+data "aws_ami" "opensuse" {
   most_recent = true
   owners      = ["679593333241"] # SUSE's official AWS account
 
   filter {
     name   = "name"
-    values = ["suse-sles-15-sp6-v*-hvm-ssd-x86_64"]
+    values = ["openSUSE-Leap-15.6-HVM-x86_64*"]
   }
 
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
+  }
+
+  filter {
+    name   = "state"
+    values = ["available"]
   }
 }
 
@@ -22,7 +27,7 @@ resource "aws_key_pair" "rancher" {
 }
 
 resource "aws_instance" "rancher" {
-  ami                    = data.aws_ami.sles.id
+  ami                    = data.aws_ami.opensuse.id
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [var.security_group_id]
