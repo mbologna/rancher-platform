@@ -23,27 +23,12 @@ turtles_config:
 capi_git_repo_url: "https://github.com/mbologna/rancher-fleet-clusters"
 capi_git_branch: "main"
 
-# CAPA (AWS) credentials — applied directly to the cluster by Ansible (not via Fleet)
-# These become a Secret named "cluster-identity" in namespace "default",
-# referenced by the AWSClusterStaticIdentity in the cluster manifest.
-# Fill these in before running ./manage.sh deploy
-capa_credentials:
-  aws_access_key_id: "CHANGE_ME"
-  aws_secret_access_key: "CHANGE_ME"
-  aws_region: "eu-west-1"
-
-# CAPM3 (Metal3 / Ironic) credentials — applied directly by Ansible
-# Leave empty strings if you are not using Metal3
-capm3_credentials:
-  ironic_url: "http://CHANGE_ME:6385/v1/"
-  ironic_inspector_url: "http://CHANGE_ME:5050/v1/"
-  ironic_username: "CHANGE_ME"
-  ironic_password: "CHANGE_ME"
+# ── Credentials ───────────────────────────────────────────────────────────────
+# Credentials are NOT stored here to avoid accidental git commits.
+# Copy ansible/vars/secrets.yml.example → ansible/vars/secrets.yml and fill in.
+# secrets.yml is gitignored.
 
 # Names of CAPI workload clusters to wait for after provisioning.
 # Leave empty for platform-only setup. Add cluster names when running
 # a full end-to-end deployment that provisions downstream clusters.
 capi_clusters: []
-
-# Default password for the Rancher admin user
-rancher_bootstrap_password: "mbologna"

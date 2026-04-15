@@ -3,6 +3,9 @@
 *.log
 ansible_collections/
 
+# Secrets — never commit credentials
+ansible/vars/secrets.yml
+
 # Python virtual environments
 /venv/
 /.venv/

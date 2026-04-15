@@ -54,6 +54,9 @@
     - name: Load main configuration
       include_vars: "vars/config.yml"
 
+    - name: Load secrets (credentials — never committed to git)
+      include_vars: "vars/secrets.yml"
+
   roles:
     - role: system_reset
       tags: [reset, always]

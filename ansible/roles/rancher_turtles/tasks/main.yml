@@ -197,7 +197,38 @@
   delegate_to: "{{ inventory_hostname }}"
   no_log: true
 
-# ── 4. Wait for CAPI clusters to be provisioned ──────────────────────────────
+# ── 4. Register Fleet GitRepo for cluster templates ──────────────────────────
+# Creates a Fleet GitRepo pointing to the public rancher-fleet-clusters repo.
+# keepResources: true ensures Fleet never deletes CAPI resources when the
+# GitRepo is deleted or paths change (avoids accidental cluster teardown).
+
+- name: Create Fleet GitRepo for CAPI cluster templates
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ rke2_kubeconfig }}"
+    definition:
+      apiVersion: fleet.cattle.io/v1alpha1
+      kind: GitRepo
+      metadata:
+        name: capi-cluster-templates
+        namespace: fleet-local
+      spec:
+        repo: "{{ capi_git_repo_url }}"
+        branch: "{{ capi_git_branch }}"
+        paths:
+          - providers/capa
+          - providers/capm3
+          - clusterclasses/aws-rke2
+          - clusterclasses/metal3-rke2
+          - clusters/aws-rke2-example
+          - clusters/aws-eks-example
+          - clusters/metal3-rke2-example
+        keepResources: true
+        targets:
+          - clusterSelector: {}
+  delegate_to: "{{ inventory_hostname }}"
+
+# ── 5. Wait for CAPI clusters to be provisioned ──────────────────────────────
 
 - name: Wait for each CAPI cluster to reach Provisioned phase
   shell: |
