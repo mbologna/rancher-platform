@@ -341,5 +341,6 @@
     - capi_clusters | length > 0
     - item.resources is defined
     - item.resources | length > 0
+    - "'eks' not in item.item"   # EKS manages CCM automatically; skip for EKS clusters
   ignore_errors: true
   delegate_to: "{{ inventory_hostname }}"
