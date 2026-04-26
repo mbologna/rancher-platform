@@ -101,7 +101,7 @@ When the playbook finishes you get:
 - Rancher running at `https://<host>`
 - **Kubeconfig fetched to `~/.kube/rancher-platform.yaml`** on your local machine
 - `kubectl` working over SSH: `ssh ec2-user@<host>` → `kubectl get nodes`
-- Rancher Turtles installed and Cluster API bootstrapped (CoreProvider ready)
+- Rancher Turtles v0.26 installed and Cluster API bootstrapped (CoreProvider ready)
 
 **Next**: register [rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters) in Fleet
 to deploy CAPI providers, ClusterClasses, and example clusters — see that repo's README for the
@@ -147,7 +147,7 @@ rancher-platform/
 │       ├── rke2/                    # RKE2 single-node install + kubeconfig
 │       ├── cluster_provisioning/    # cert-manager
 │       ├── rancher_manager/         # Rancher Helm chart + API token
-│       ├── rancher_turtles/         # Turtles + CAPI bootstrap + Fleet GitRepo
+│       ├── rancher_turtles/         # ClusterctlConfig for custom provider URLs (Turtles v0.26 bundled in Rancher v2.14+)
 │       └── development_tools/       # helper scripts (cluster-status, rancher-logs, …)
 └── terraform/
     ├── main.tf
@@ -167,8 +167,8 @@ rancher-platform/
 |-----------------|----------------|
 | RKE2            | v1.34.6+rke2r3 |
 | cert-manager    | v1.20.1        |
-| Rancher         | latest stable  |
-| Rancher Turtles | v0.26.0        |
+| Rancher         | v2.14+ (latest channel) — ships Turtles v0.26 + CAPI v1.12.x |
+| Turtles         | v0.26 (bundled with Rancher v2.14 — auto-manages CoreProvider) |
 | CAPRKE2         | v0.24.2        |
 | CAPA (AWS)      | v2.10.2        |
 | CAPM3 (Metal3)  | v1.12.3        |

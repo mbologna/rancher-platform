@@ -1,28 +1,11 @@
 ---
-# ── 1. Install Rancher Turtles (includes CAPI Operator) ──────────────────────
-
-- name: Add Rancher Turtles Helm repository
-  kubernetes.core.helm_repository:
-    name: turtles
-    repo_url: https://rancher.github.io/turtles
-    state: present
-
-- name: Install Rancher Turtles via Helm
-  kubernetes.core.helm:
-    name: rancher-turtles
-    chart_ref: turtles/rancher-turtles
-    chart_version: "{{ turtles_config.version }}"
-    release_namespace: cattle-turtles-system
-    create_namespace: true
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    values:
-      cluster-api-operator:
-        cluster-api:
-          enabled: true
-    update_repo_cache: yes
-    wait: true
-    wait_timeout: 600s
-  delegate_to: "{{ inventory_hostname }}"
+# Rancher Turtles is bundled with Rancher >= v2.13 as a system chart — no Helm install needed.
+# Rancher v2.14+ ships Turtles v0.26, which uses CAPI v1.12.x with full v1beta2 CRD support.
+# Rancher v2.14 automatically creates and manages the CoreProvider CR in cattle-capi-system.
+# We only need to:
+#   1. Wait for the Turtles controller Rancher deploys to be ready
+#   2. Register custom provider URLs via ClusterctlConfig (rke2, docker, aws, metal3)
+#   3. Restart the controller so it picks up the new config
 
 - name: Wait for Turtles controller to be ready
   kubernetes.core.k8s_info:
@@ -50,12 +33,7 @@
   changed_when: false
   delegate_to: "{{ inventory_hostname }}"
 
-# ── 2. Bootstrap CAPI core ────────────────────────────────────────────────────
-# The CoreProvider CR tells CAPI Operator to take ownership of CAPI core.
-# All other providers (rke2, docker, aws, metal3) are managed by Fleet via
-# rancher-fleet-clusters — register that GitRepo after deploy.
-
-- name: Patch clusterctl-config ConfigMap to register rke2, docker, aws, and metal3 providers
+- name: Register custom provider URLs via ClusterctlConfig
   kubernetes.core.k8s:
     state: present
     kubeconfig: "{{ rke2_kubeconfig }}"
@@ -93,29 +71,5 @@
       deployment/rancher-turtles-controller-manager -n cattle-turtles-system \
       --timeout=120s
   changed_when: true
-  delegate_to: "{{ inventory_hostname }}"
-
-- name: Create cluster-api CoreProvider CR (triggers CAPI Operator to manage CAPI core)
-  kubernetes.core.k8s:
-    state: present
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    definition:
-      apiVersion: turtles-capi.cattle.io/v1alpha1
-      kind: CAPIProvider
-      metadata:
-        name: cluster-api
-        namespace: cattle-capi-system
-      spec:
-        name: cluster-api
-        type: core
-  delegate_to: "{{ inventory_hostname }}"
-
-- name: Remove bootstrap capi-system namespace (Turtles manages CAPI in cattle-capi-system)
-  kubernetes.core.k8s:
-    state: absent
-    kubeconfig: "{{ rke2_kubeconfig }}"
-    kind: Namespace
-    name: capi-system
-    wait: false
   delegate_to: "{{ inventory_hostname }}"
 
