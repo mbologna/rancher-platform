@@ -16,10 +16,10 @@ It is designed for:
 - **Solution Architects** — bootstrap a Rancher demo environment from scratch, or install Rancher
   on any Linux machine for an end-to-end IaC demo.
 
-> **Scope**: this repo installs Rancher and bootstraps the CAPI platform (Turtles, Fleet GitRepo).
+> **Scope**: this repo installs Rancher and bootstraps the CAPI platform (Turtles).
 > CAPI providers, ClusterClasses, and cluster definitions live in
-> **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)** — managed
-> automatically by Fleet once the platform is up.
+> **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)** — register
+> that repo in Fleet after this one is done.
 
 ---
 
@@ -59,6 +59,13 @@ The Ansible inventory is written automatically to `terraform/generated/hosts.yml
 ---
 
 ## Step 2 — Install Rancher
+
+Supported OS:
+
+| OS family | Tested on | Notes |
+|---|---|---|
+| **SUSE** | openSUSE Leap 15.6 | Default via Terraform (official SUSE AMI). SLE 15.x also supported — `python3` module registered via `suseconnect` automatically. |
+| **Debian** | Ubuntu 22.04 / 24.04 | Bring your own machine. |
 
 **2a. Point Ansible at your host**
 
