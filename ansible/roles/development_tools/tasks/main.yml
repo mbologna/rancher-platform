@@ -58,14 +58,14 @@
       echo "KUBECONFIG: $KUBECONFIG"
       echo "Rancher Manager: $RANCHER_URL"
       echo "Available commands: cluster-status, rancher-logs, port-forward-rancher, cleanup-rancher"
-    dest: "{{ ansible_env.HOME }}/.rancher-dev/dev-env-profile.sh"
+    dest: "{{ ansible_facts['env']['HOME'] }}/.rancher-dev/dev-env-profile.sh"
     mode: '0644'
 
 - name: Display development tools information
   debug:
     msg:
       - "Development tools installed successfully"
-      - "Load environment: source {{ ansible_env.HOME }}/.rancher-dev/dev-env-profile.sh"
+      - "Load environment: source {{ ansible_facts['env']['HOME'] }}/.rancher-dev/dev-env-profile.sh"
       - "Key commands:"
       - "  cluster-status        - Show cluster overview"
       - "  rancher-logs          - Stream Rancher Manager logs"
