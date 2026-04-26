@@ -12,22 +12,23 @@ resource "aws_security_group" "rancher" {
     cidr_blocks = var.allowed_ssh_cidrs
   }
 
-  # HTTP — redirect to HTTPS; your IP + downstream clusters (Rancher agent callbacks)
+  # HTTP — redirect to HTTPS; open to all (Rancher is a public web service; cattle-cluster-agent
+  # pods in downstream clusters may route through NAT/IGW and appear with public source IPs)
   ingress {
     description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = concat(var.allowed_admin_cidrs, var.allowed_cluster_cidrs)
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # HTTPS — Rancher UI (your IP) + cluster-agent registration (downstream clusters)
+  # HTTPS — Rancher UI/API + cluster-agent registration; open to all for the same reason
   ingress {
     description = "HTTPS (Rancher UI/API + cluster registration)"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = concat(var.allowed_admin_cidrs, var.allowed_cluster_cidrs)
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # Kubernetes API — kubeconfig access (your IP) + CAPI reconciliation (downstream clusters)

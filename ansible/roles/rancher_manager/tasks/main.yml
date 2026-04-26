@@ -35,6 +35,11 @@
       ingress:
         tls:
           source: rancher
+      # Required for Rancher v2.14+ (new networking exposure model)
+      networkExposure:
+        type: ingress
+      rancherNamespaces:
+        enabled: false
     update_repo_cache: yes
     wait: true
     wait_timeout: 600s

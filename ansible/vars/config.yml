@@ -4,17 +4,18 @@
 # Versions for components installed in the cluster
 management_cluster_versions:
   cert_manager: "v1.20.1"
-  rancher_channel: "stable" # Use 'stable' or 'latest'
+  rancher_channel: "latest"   # Use 'stable' (v2.13) or 'latest' (v2.14 — required for Turtles v0.26)
 
 # Configuration for RKE2
 rke2_config:
   version: "v1.34.6+rke2r3"
 
-# Rancher Turtles (CAPI integration)
+# Rancher Turtles (CAPI integration) — bundled with Rancher >= v2.13, no separate install needed.
+# Rancher v2.14+ ships Turtles v0.26 (uses CAPI v1.12.x with v1beta2 CRD support).
+# These versions control the CAPI providers installed via ClusterctlConfig.
 turtles_config:
-  version: "v0.26.0"
-  caprke2_version: "v0.24.2"  # v1beta2 contract — compatible with Turtles v0.26.0 (CAPI Operator v0.26.0)
-  capd_version: "v1.12.5"     # matches CAPI core version bundled in Turtles v0.26.0
+  caprke2_version: "v0.24.2"  # v1beta2 contract — compatible with Turtles v0.26 / Rancher v2.14+
+  capd_version: "v1.12.5"     # matches CAPI core version bundled in Rancher v2.14+
   capa_version: "v2.10.2"     # cluster-api-provider-aws (v1beta2 contract)
   capm3_version: "v1.12.3"    # cluster-api-provider-metal3
 
