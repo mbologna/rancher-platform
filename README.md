@@ -169,10 +169,9 @@ rancher-platform/
 | cert-manager    | v1.20.1        |
 | Rancher         | v2.14+ (latest channel) — ships Turtles v0.26 + CAPI v1.12.x |
 | Turtles         | v0.26 (bundled with Rancher v2.14 — auto-manages CoreProvider) |
-| CAPRKE2         | v0.24.2        |
-| CAPA (AWS)      | v2.10.2        |
-| CAPM3 (Metal3)  | v1.12.3        |
-| CAPD (Docker)   | v1.12.5        |
+
+CAPI provider versions (CAPRKE2, CAPA, CAPD, CAPM3) are pinned in
+**[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters#version-matrix)**.
 
 ---
 
