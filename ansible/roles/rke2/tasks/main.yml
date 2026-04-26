@@ -58,6 +58,37 @@
     chmod 600 {{ rke2_kubeconfig }}
   changed_when: false
 
+- name: Create external kubeconfig with public hostname for remote kubectl use
+  shell: |
+    sed 's|server: https://127.0.0.1:6443|server: https://{{ rancher_hostname }}:6443|g' \
+      /etc/rancher/rke2/rke2.yaml > {{ kubeconfig_dir }}/rke2-kubeconfig-external.yaml
+    chmod 600 {{ kubeconfig_dir }}/rke2-kubeconfig-external.yaml
+  changed_when: false
+
+- name: Ensure ec2-user .kube directory exists
+  file:
+    path: /home/ec2-user/.kube
+    state: directory
+    owner: ec2-user
+    mode: '0700'
+
+- name: Remove stale kubeconfig files from ec2-user home (left by old playbook versions)
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /home/ec2-user/rke2-kubeconfig.yaml
+    - /home/ec2-user/rke2-kubeconfig-external.yaml
+
+- name: Copy kubeconfig to ec2-user home for direct SSH access
+  copy:
+    src: /etc/rancher/rke2/rke2.yaml
+    dest: /home/ec2-user/.kube/config
+    owner: ec2-user
+    mode: '0600'
+    remote_src: yes
+  changed_when: false
+
 - name: Wait for Kubernetes API server to be ready
   shell: /usr/local/bin/kubectl --kubeconfig={{ rke2_kubeconfig }} get nodes --no-headers
   register: nodes_ready

@@ -18,17 +18,7 @@ turtles_config:
   capa_version: "v2.10.2"     # cluster-api-provider-aws (v1beta2 contract)
   capm3_version: "v1.12.3"    # cluster-api-provider-metal3
 
-# Fleet GitRepo: points to the public git repo containing cluster templates
-# The public repo contains NO credentials — they are created below by Ansible.
-capi_git_repo_url: "https://github.com/mbologna/rancher-fleet-clusters"
-capi_git_branch: "main"
-
 # ── Credentials ───────────────────────────────────────────────────────────────
 # Credentials are NOT stored here to avoid accidental git commits.
 # Copy ansible/vars/secrets.yml.example → ansible/vars/secrets.yml and fill in.
 # secrets.yml is gitignored.
-
-# Names of CAPI workload clusters to wait for after provisioning.
-# Leave empty for platform-only setup. Add cluster names when running
-# a full end-to-end deployment that provisions downstream clusters.
-capi_clusters: []

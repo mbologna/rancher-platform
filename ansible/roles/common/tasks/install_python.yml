@@ -16,7 +16,7 @@
       zypper:
         name: python311
         state: present
-  when: python311_check.rc != 0 and ansible_os_family == 'Suse'
+  when: python311_check.rc != 0 and ansible_facts['os_family'] == 'Suse'
 
 - name: Install Python 3.11 if needed on Debian family
   block:
@@ -27,4 +27,4 @@
       apt:
         name: python3.11
         state: present
-  when: python311_check.rc != 0 and ansible_os_family == 'Debian'
+  when: python311_check.rc != 0 and ansible_facts['os_family'] == 'Debian'

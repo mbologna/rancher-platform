@@ -47,6 +47,6 @@
 - name: Save API token to file
   copy:
     content: "{{ rancher_api_token }}"
-    dest: "{{ ansible_env.HOME }}/.rancher-dev/rancher-api-token"
+    dest: "{{ ansible_facts['env']['HOME'] }}/.rancher-dev/rancher-api-token"
     mode: '0600'
   delegate_to: "{{ inventory_hostname }}"

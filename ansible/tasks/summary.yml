@@ -1,55 +1,41 @@
 ---
-- name: Generate final environment summary
-  set_fact:
-    env_summary:
-      title: "🚀 RANCHER MANAGER ON RKE2"
-      access:
-        rancher_url: "https://{{ rancher_hostname }}"
-        username: "admin"
-        password: "{{ rancher_bootstrap_password }}"
-      kubeconfig: "{{ rke2_kubeconfig }}"
+- name: Fetch external kubeconfig to local machine
+  fetch:
+    src: "{{ kubeconfig_dir }}/rke2-kubeconfig-external.yaml"
+    dest: "~/.kube/rancher-platform.yaml"
+    flat: yes
 
-- name: Set summary content as a fact
+- name: Generate final environment summary
   set_fact:
     summary_content: |
       ===============================================================================
-      {{ env_summary.title }}
+      🚀 RANCHER MANAGER ON RKE2 — READY
       ===============================================================================
 
-      🌐 ACCESS INFORMATION:
-      Rancher Manager: {{ env_summary.access.rancher_url }}
-      Username: {{ env_summary.access.username }}
-      Password: {{ env_summary.access.password }}
+      🌐 ACCESS
+        Rancher UI:  https://{{ rancher_hostname }}
+        Username:    admin
+        Password:    {{ rancher_bootstrap_password }}
 
-      🔧 CAPI / TURTLES:
-      Fleet GitRepo: capi-cluster-templates (fleet-local namespace)
-      Cluster templates: {{ capi_git_repo_url }}/cluster-templates/
-      Workload clusters: {{ capi_clusters | join(', ') }}
+      🔑 KUBECONFIG
+        Local file:  ~/.kube/rancher-platform.yaml  (fetched to your machine)
+        SSH access:  ssh ec2-user@{{ ansible_host }}  (kubectl works via ~/.kube/config)
 
-      📁 KUBECONFIG:
-      {{ env_summary.kubeconfig }}
+        Use locally:
+          export KUBECONFIG=~/.kube/rancher-platform.yaml
+          kubectl get nodes
 
-      🛠️ DEVELOPMENT TOOLS:
-      cluster-status        - RKE2 cluster and Rancher overview
-      rancher-logs          - Stream Rancher Manager logs
-      port-forward-rancher  - Local Rancher access (port 8443)
-      cleanup-rancher       - Remove Rancher and cert-manager
-
-      🚀 QUICK START:
-      # Load development environment in your shell:
-      source {{ ansible_env.HOME }}/.rancher-dev/dev-env-profile.sh
-
-      # Check status
-      cluster-status
+      🚢 NEXT: add CAPI providers + ClusterClasses
+        → https://github.com/mbologna/rancher-fleet-clusters
+        Fleet has already registered that repo as a GitRepo (fleet-local namespace).
+        Add or enable paths in the GitRepo to activate providers and ClusterClasses.
 
       ===============================================================================
-      Environment ready! Access Rancher Manager at {{ env_summary.access.rancher_url }}
-      ===============================================================================
 
-- name: Create environment summary file
+- name: Create environment summary file on remote host
   copy:
     content: "{{ summary_content }}"
-    dest: "{{ ansible_env.HOME }}/.rancher-dev/rancher-dev-summary.txt"
+    dest: "{{ ansible_facts['env']['HOME'] }}/.rancher-dev/rancher-dev-summary.txt"
     mode: '0644'
 
 - name: Display environment summary

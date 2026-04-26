@@ -16,8 +16,10 @@ It is designed for:
 - **Solution Architects** — bootstrap a Rancher demo environment from scratch, or install Rancher
   on any Linux machine for an end-to-end IaC demo.
 
-> **Scope**: this repo installs Rancher. CAPI providers, ClusterClasses, cluster templates, and
-> AWS credentials live in **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)** — the next step.
+> **Scope**: this repo installs Rancher and bootstraps the CAPI platform (Turtles, Fleet GitRepo).
+> CAPI providers, ClusterClasses, and cluster definitions live in
+> **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)** — managed
+> automatically by Fleet once the platform is up.
 
 ---
 
@@ -42,13 +44,13 @@ Any machine works — cloud VM, bare metal, or any Linux host where you have roo
 
 Skip to Step 2 — just make sure you have SSH access and the user can run commands as root.
 
-**Option B: provision one on AWS with Terraform**
+**Option B: provision one on AWS with Terraform / OpenTofu**
 
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
 # edit terraform.tfvars: set region, SSH key name, restrict allowed_ssh_cidrs
-terraform init && terraform apply
+tofu init && tofu apply   # or: terraform init && terraform apply
 ```
 
 Provisions: EC2 instance · VPC · Elastic IP · Security Group.
@@ -87,15 +89,16 @@ cp vars/secrets.yml.example vars/secrets.yml
 ./manage.sh deploy -i ../terraform/generated/hosts.yml      # or use the Terraform inventory
 ```
 
-Rancher is now running at `https://<host>`.
+When the playbook finishes you get:
 
----
+- Rancher running at `https://<host>`
+- **Kubeconfig fetched to `~/.kube/rancher-platform.yaml`** on your local machine
+- `kubectl` working over SSH: `ssh ec2-user@<host>` → `kubectl get nodes`
+- Rancher Turtles installed and Cluster API bootstrapped (CoreProvider ready)
 
-## Next: add CAPI cluster templates
-
-Head to **[rancher-fleet-clusters →](https://github.com/mbologna/rancher-fleet-clusters)**
-to set up AWS credentials and add CAPI providers, ClusterClasses, and example clusters with a
-single Fleet command.
+**Next**: register [rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters) in Fleet
+to deploy CAPI providers, ClusterClasses, and example clusters — see that repo's README for the
+one-command registration.
 
 ---
 
@@ -132,12 +135,13 @@ rancher-platform/
 │   │   └── secrets.yml.example      # credential template (never committed)
 │   └── roles/
 │       ├── system_reset/            # wipe previous RKE2/k3s/Docker state
-│       ├── common/                  # Docker
+│       ├── common/                  # Docker, sysctl tuning
 │       ├── cluster_tools/           # Helm
-│       ├── rke2/                    # RKE2 single-node install
+│       ├── rke2/                    # RKE2 single-node install + kubeconfig
 │       ├── cluster_provisioning/    # cert-manager
 │       ├── rancher_manager/         # Rancher Helm chart + API token
-│       └── rancher_turtles/         # Turtles installation
+│       ├── rancher_turtles/         # Turtles + CAPI bootstrap + Fleet GitRepo
+│       └── development_tools/       # helper scripts (cluster-status, rancher-logs, …)
 └── terraform/
     ├── main.tf
     ├── variables.tf / outputs.tf
@@ -156,12 +160,16 @@ rancher-platform/
 |-----------------|----------------|
 | RKE2            | v1.34.6+rke2r3 |
 | cert-manager    | v1.20.1        |
-| Rancher         | 2.14.0         |
+| Rancher         | latest stable  |
 | Rancher Turtles | v0.26.0        |
+| CAPRKE2         | v0.24.2        |
+| CAPA (AWS)      | v2.10.2        |
+| CAPM3 (Metal3)  | v1.12.3        |
+| CAPD (Docker)   | v1.12.5        |
 
 ---
 
 ## Related
 
 **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)** — CAPI providers,
-ClusterClasses, AWS credentials, and example clusters — the next step after this repo.
+ClusterClasses, and example clusters — deployed automatically by Fleet after this repo runs.

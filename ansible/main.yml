@@ -44,8 +44,8 @@
 
   vars:
     ansible_python_interpreter: /usr/bin/python3.11
-    kubeconfig_dir: "{{ ansible_env.HOME }}/.rancher-dev/kubeconfigs"
-    rke2_kubeconfig: "{{ ansible_env.HOME }}/.rancher-dev/kubeconfigs/rke2-kubeconfig.yaml"
+    kubeconfig_dir: "{{ ansible_facts['env']['HOME'] }}/.rancher-dev/kubeconfigs"
+    rke2_kubeconfig: "{{ ansible_facts['env']['HOME'] }}/.rancher-dev/kubeconfigs/rke2-kubeconfig.yaml"
 
   environment:
     PATH: "/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"

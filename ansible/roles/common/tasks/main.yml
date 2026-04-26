@@ -1,7 +1,7 @@
 ---
 - name: Ensure a clean development directory on each run
   file:
-    path: "{{ ansible_env.HOME }}/.rancher-dev"
+    path: "{{ ansible_facts['env']['HOME'] }}/.rancher-dev"
     state: absent
 
 - name: Re-create development directory structure
@@ -10,29 +10,38 @@
     state: directory
     mode: '0755'
   loop:
-    - "{{ ansible_env.HOME }}/.rancher-dev"
+    - "{{ ansible_facts['env']['HOME'] }}/.rancher-dev"
     - "{{ kubeconfig_dir }}"
-    - "{{ ansible_env.HOME }}/.rancher-dev/cluster-configs"
+    - "{{ ansible_facts['env']['HOME'] }}/.rancher-dev/cluster-configs"
     - /var/log/rancher-dev
+
+- name: Check if firewalld package is installed (SUSE)
+  command: rpm -q firewalld
+  register: firewalld_rpm
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['os_family'] == 'Suse'
 
 - name: Stop and disable firewalld on SUSE family systems
   service:
     name: firewalld
     state: stopped
     enabled: no
-  ignore_errors: yes
-  when: ansible_os_family == 'Suse'
+  when:
+    - ansible_facts['os_family'] == 'Suse'
+    - firewalld_rpm is defined
+    - firewalld_rpm.rc == 0
 
 - name: Remove third-party repos with invalid/expired GPG keys on SUSE (avoids zypper rc=106)
   command: zypper removerepo "{{ item }}"
   ignore_errors: yes
   loop:
     - innovators
-  when: ansible_os_family == 'Suse'
+  when: ansible_facts['os_family'] == 'Suse'
 
 - name: Refresh zypper repositories
   command: zypper --non-interactive --gpg-auto-import-keys refresh
-  when: ansible_os_family == 'Suse'
+  when: ansible_facts['os_family'] == 'Suse'
   changed_when: false
 
 - name: Stop and disable ufw on Debian family systems
@@ -41,7 +50,7 @@
     state: stopped
     enabled: no
   ignore_errors: yes
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian'
 
 - name: Install Docker (required for CAPD infrastructure provider)
   package:
@@ -58,7 +67,7 @@
   package:
     name:
       - curl
-      - "{{ 'python311-pip' if ansible_os_family == 'Suse' else 'python3.11-pip' }}"
+      - "{{ 'python311-pip' if ansible_facts['os_family'] == 'Suse' else 'python3.11-pip' }}"
       - jq
       - git
       - vim
@@ -80,7 +89,7 @@
   lineinfile:
     path: /etc/hosts
     regexp: "{{ rancher_hostname }}"
-    line: "{{ ansible_default_ipv4.address }} {{ rancher_hostname }}"
+    line: "{{ ansible_facts['default_ipv4']['address'] }} {{ rancher_hostname }}"
     state: present
 
 - name: Optimize system for container development

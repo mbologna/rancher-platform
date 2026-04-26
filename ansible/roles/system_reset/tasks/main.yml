@@ -127,14 +127,14 @@
   zypper:
     name: docker
     state: present
-  when: ansible_os_family == 'Suse' and docker_running.rc != 0
+  when: ansible_facts['os_family'] == 'Suse' and docker_running.rc != 0
 
 - name: Ensure Docker is installed (Debian family)
   apt:
     name: docker.io
     state: present
     update_cache: yes
-  when: ansible_os_family == 'Debian' and docker_running.rc != 0
+  when: ansible_facts['os_family'] == 'Debian' and docker_running.rc != 0
 
 - name: Ensure Docker is started and enabled
   service:
@@ -203,5 +203,5 @@
 
 - name: Remove dev kubeconfig directory
   file:
-    path: "{{ ansible_env.HOME }}/.rancher-dev"
+    path: "{{ ansible_facts['env']['HOME'] }}/.rancher-dev"
     state: absent
