@@ -65,12 +65,19 @@
     chmod 600 {{ kubeconfig_dir }}/rke2-kubeconfig-external.yaml
   changed_when: false
 
+- name: Check if ec2-user exists
+  command: id ec2-user
+  register: ec2_user_check
+  changed_when: false
+  failed_when: false
+
 - name: Ensure ec2-user .kube directory exists
   file:
     path: /home/ec2-user/.kube
     state: directory
     owner: ec2-user
     mode: '0700'
+  when: ec2_user_check.rc == 0
 
 - name: Remove stale kubeconfig files from ec2-user home (left by old playbook versions)
   file:
@@ -79,6 +86,7 @@
   loop:
     - /home/ec2-user/rke2-kubeconfig.yaml
     - /home/ec2-user/rke2-kubeconfig-external.yaml
+  when: ec2_user_check.rc == 0
 
 - name: Copy kubeconfig to ec2-user home for direct SSH access
   copy:
@@ -88,6 +96,7 @@
     mode: '0600'
     remote_src: yes
   changed_when: false
+  when: ec2_user_check.rc == 0
 
 - name: Wait for Kubernetes API server to be ready
   shell: /usr/local/bin/kubectl --kubeconfig={{ rke2_kubeconfig }} get nodes --no-headers

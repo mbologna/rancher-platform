@@ -32,11 +32,20 @@
     - firewalld_rpm is defined
     - firewalld_rpm.rc == 0
 
+- name: Kill any stale zypper processes and clear the lock (avoids rc=7 on retry)
+  shell: |
+    pkill -9 -x zypper 2>/dev/null || true
+    rm -f /run/zypp.pid /var/run/zypp.pid /run/zypp-lock /var/run/zypp-lock
+  changed_when: false
+  when: ansible_facts['os_family'] == 'Suse'
+
 - name: Remove third-party repos with invalid/expired GPG keys on SUSE (avoids zypper rc=106)
   command: zypper removerepo "{{ item }}"
   ignore_errors: yes
   loop:
     - innovators
+    - SLES15-SP3-15.3-0
+    - SUSE_CA
   when: ansible_facts['os_family'] == 'Suse'
 
 - name: Refresh zypper repositories
