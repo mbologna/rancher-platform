@@ -69,16 +69,14 @@ Supported OS:
 
 **2a. Point Ansible at your host**
 
-If you used Terraform, the inventory was already written. Otherwise edit
-`ansible/inventory/hosts.yml`:
+If you used Terraform, the inventory was already written. Otherwise copy the example and fill in your details:
 
-```yaml
-servers:
-  hosts:
-    my-host:
-      ansible_host: 1.2.3.4
-      ansible_user: root
+```bash
+cp ansible/inventory/hosts.yml.example ansible/inventory/hosts.yml
+# edit hosts.yml: set ansible_host and rancher_hostname
 ```
+
+> `ansible/inventory/hosts.yml` is gitignored and will never be committed.
 
 **2b. Configure the Rancher password**
 
@@ -119,7 +117,7 @@ at it directly — Step 2 is identical. The result is Rancher installed and conf
 customer-managed machine, ready for a live CAPI demo.
 
 ```yaml
-# ansible/inventory/hosts.yml
+# ansible/inventory/hosts.yml  (copy from hosts.yml.example — gitignored)
 servers:
   hosts:
     mlm-managed-host:
@@ -136,7 +134,9 @@ rancher-platform/
 ├── ansible/
 │   ├── manage.sh                    # deploy / install / destroy / status
 │   ├── main.yml                     # top-level playbook
-│   ├── inventory/hosts.yml          # target hosts
+│   ├── inventory/
+│   │   ├── hosts.yml          # gitignored — copy from hosts.yml.example
+│   │   └── hosts.yml.example  # template (no real hostnames)
 │   ├── vars/
 │   │   ├── config.yml               # version pins and settings
 │   │   └── secrets.yml.example      # credential template (never committed)

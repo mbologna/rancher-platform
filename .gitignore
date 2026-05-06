@@ -22,8 +22,8 @@ ansible/vars/secrets.yml
 # macOS generated files
 .DS_Store
 
-# Local inventory files (if you create them)
-ansible/inventory/local.yml
+# Inventory files with real hostnames — never commit these
+ansible/inventory/hosts.yml
 
 # Terraform
 terraform/.terraform/
