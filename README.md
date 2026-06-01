@@ -6,19 +6,19 @@
 
 ## What is this?
 
-This repo gets you a running **Rancher management cluster** — the platform on which cluster
+This repo gets you a running **Rancher management cluster**, the platform on which cluster
 provisioning via [Cluster API (CAPI)](https://cluster-api.sigs.k8s.io/) happens.
 
 It is designed for:
 
-- **Rancher Engineering** — spin up a fully configured Rancher instance in minutes to experiment
+- **Rancher Engineering**: spin up a fully configured Rancher instance in minutes to experiment
   with CAPI providers, reproduce bugs, or test upgrades.
-- **Solution Architects** — bootstrap a Rancher demo environment from scratch, or install Rancher
+- **Solution Architects**: bootstrap a Rancher demo environment from scratch, or install Rancher
   on any Linux machine for an end-to-end IaC demo.
 
 > **Scope**: this repo installs Rancher and bootstraps the CAPI platform (Turtles).
 > CAPI providers, ClusterClasses, and cluster definitions live in
-> **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)** — register
+> **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)**. Register
 > that repo in Fleet after this one is done.
 
 ---
@@ -34,15 +34,15 @@ Do you have a machine to install Rancher on?
 └─ YES ──► Step 2: install Rancher with Ansible
 ```
 
-Any machine works — cloud VM, bare metal, or any Linux host where you have root or SSH access.
+Any machine works: cloud VM, bare metal, or any Linux host where you have root or SSH access.
 
 ---
 
-## Step 1 — Get a machine *(skip if you already have one)*
+## Step 1: Get a machine *(skip if you already have one)*
 
 **Option A: any machine you control**
 
-Skip to Step 2 — just make sure you have SSH access and the user can run commands as root.
+Skip to Step 2. Just make sure you have SSH access and the user can run commands as root.
 
 **Option B: provision one on AWS with Terraform / OpenTofu**
 
@@ -58,13 +58,13 @@ The Ansible inventory is written automatically to `terraform/generated/hosts.yml
 
 ---
 
-## Step 2 — Install Rancher
+## Step 2: Install Rancher
 
 Supported OS:
 
 | OS family | Tested on | Notes |
 |---|---|---|
-| **SUSE** | openSUSE Leap 15.6 | Default via Terraform (official SUSE AMI). SLE 15.x also supported — `python3` module registered via `suseconnect` automatically. |
+| **SUSE** | openSUSE Leap 15.6 | Default via Terraform (official SUSE AMI). SLE 15.x also supported (`python3` module registered via `suseconnect` automatically). |
 | **Debian** | Ubuntu 22.04 / 24.04 | Bring your own machine. |
 
 **2a. Point Ansible at your host**
@@ -167,8 +167,8 @@ rancher-platform/
 |-----------------|----------------|
 | RKE2            | v1.34.6+rke2r3 |
 | cert-manager    | v1.20.1        |
-| Rancher         | v2.14+ (latest channel) — ships Turtles v0.26 + CAPI v1.12.x |
-| Turtles         | v0.26 (bundled with Rancher v2.14 — auto-manages CoreProvider) |
+| Rancher         | v2.14+ (latest channel, ships Turtles v0.26 + CAPI v1.12.x) |
+| Turtles         | v0.26 (bundled with Rancher v2.14, auto-manages CoreProvider) |
 
 CAPI provider versions (CAPRKE2, CAPA, CAPD, CAPM3) are pinned in
 **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters#version-matrix)**.
@@ -177,5 +177,5 @@ CAPI provider versions (CAPRKE2, CAPA, CAPD, CAPM3) are pinned in
 
 ## Related
 
-**[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)** — CAPI providers,
-ClusterClasses, and example clusters — deployed automatically by Fleet after this repo runs.
+**[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)**: CAPI providers,
+ClusterClasses, and example clusters, deployed automatically by Fleet after this repo runs.
