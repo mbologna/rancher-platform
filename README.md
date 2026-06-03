@@ -113,7 +113,7 @@ one-command registration.
 
 If the target machine is already registered as a managed node in
 [SUSE Multi-Linux Manager](https://www.suse.com/products/multi-linux-manager/), point Ansible
-at it directly — Step 2 is identical. The result is Rancher installed and configured on a
+at it directly. Step 2 is identical. The result is Rancher installed and configured on a
 customer-managed machine, ready for a live CAPI demo.
 
 ```yaml
