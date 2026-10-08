@@ -53,7 +53,7 @@ cp terraform.tfvars.example terraform.tfvars
 tofu init && tofu apply   # or: terraform init && terraform apply
 ```
 
-Provisions: EC2 instance · VPC · Elastic IP · Security Group.
+Provisions: EC2 instance, VPC, Elastic IP, Security Group.
 The Ansible inventory is written automatically to `terraform/generated/hosts.yml`.
 
 ---
@@ -102,7 +102,7 @@ When the playbook finishes you get:
 - Rancher Turtles v0.26 installed and Cluster API bootstrapped (CoreProvider ready)
 
 **Next**: register [rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters) in Fleet
-to deploy CAPI providers, ClusterClasses, and example clusters — see that repo's README for the
+to deploy CAPI providers, ClusterClasses, and example clusters. See that repo's README for the
 one-command registration.
 
 ---
