@@ -1,0 +1,12 @@
+# Optional remote state. Copy to backend.tf (gitignored), set the bucket, then run:
+#   tofu init -migrate-state
+# use_lockfile needs OpenTofu >= 1.10 or Terraform >= 1.11; no DynamoDB table is required.
+terraform {
+  backend "s3" {
+    bucket       = "my-tofu-state-bucket"
+    key          = "rancher-platform/terraform.tfstate"
+    region       = "eu-west-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
