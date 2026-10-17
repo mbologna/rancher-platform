@@ -1,9 +1,51 @@
 ---
+# Lists every RKE2/K3s binary in a standard location, ours first, as "<path> <version line>".
 - name: Check installed RKE2 version
-  ansible.builtin.command: "{{ rke2_install_prefix }}/bin/rke2 --version"
-  register: rke2_installed
+  ansible.builtin.shell: |
+    set -o pipefail
+    for p in {{ rke2_install_prefix }}/bin/rke2 /usr/local/bin/rke2 /opt/rke2/bin/rke2 /usr/bin/rke2 \
+             /usr/local/bin/k3s /usr/bin/k3s; do
+      [ -x "$p" ] && echo "$p $("$p" --version 2>/dev/null | head -1)"
+    done | awk '!seen[$1]++'
+  args:
+    executable: /bin/bash
+  register: rke2_found
   changed_when: false
   failed_when: false
+
+# A second install under another prefix keeps its own systemd unit, so an upgrade would not take effect.
+- name: Refuse to deploy over RKE2 or K3s installed by other means
+  ansible.builtin.assert:
+    that: rke2_foreign | length == 0
+    fail_msg: >-
+      Found {{ rke2_foreign | join(', ') }} outside {{ rke2_install_prefix }}.
+      Run `./manage.sh reset` to remove it and deploy from scratch.
+    quiet: true
+  vars:
+    rke2_foreign: >-
+      {{ rke2_found.stdout_lines | map('split') | map('first')
+         | reject('equalto', rke2_install_prefix ~ '/bin/rke2') | list }}
+
+- name: Record the installed RKE2 version
+  ansible.builtin.set_fact:
+    rke2_installed: "{{ rke2_found.stdout_lines | first | default('') }}"
+
+- name: List listeners on the ports RKE2 needs
+  ansible.builtin.command: >-
+    ss -ltnpH '( sport = :80 or sport = :443 or sport = :6443 or sport = :9345 or sport = :10250 )'
+  register: rke2_port_users
+  changed_when: false
+  when: rke2_installed | length == 0
+
+- name: Refuse to install RKE2 while other services hold its ports
+  ansible.builtin.assert:
+    that: rke2_port_users.stdout_lines | length == 0
+    fail_msg: >-
+      Ports needed by RKE2 are in use (for example by kind or Docker port mappings):
+      {{ rke2_port_users.stdout_lines | map('split') | map('join', ' ') | join('; ') }}.
+      Stop those services, or run `./manage.sh reset` to remove kind/k3d/K3s and all Docker data.
+    quiet: true
+  when: rke2_installed | length == 0
 
 # Kubernetes upgrades one minor version at a time and does not support downgrades.
 - name: Refuse to skip or roll back a Kubernetes minor version
@@ -11,15 +53,16 @@
     that: (rke2_target_minor | int) - (rke2_installed_minor | int) in [0, 1]
     fail_msg: >-
       RKE2 is at 1.{{ rke2_installed_minor }}; {{ rke2_version }} would move to 1.{{ rke2_target_minor }}.
-      Kubernetes cannot downgrade or skip a minor; upgrade through each minor with -e rke2_version=<v1.N.x release>.
+      Kubernetes cannot downgrade or skip a minor; upgrade through each minor with -e rke2_version=<v1.N.x release>,
+      or run `./manage.sh reset` to wipe the cluster and deploy from scratch.
     quiet: true
   vars:
-    rke2_installed_minor: "{{ rke2_installed.stdout | regex_search('v1\\.(\\d+)\\.', '\\1') | first | int }}"
+    rke2_installed_minor: "{{ rke2_installed | regex_search('v1\\.(\\d+)\\.', '\\1') | first | int }}"
     rke2_target_minor: "{{ rke2_version | regex_search('v1\\.(\\d+)\\.', '\\1') | first | int }}"
-  when: rke2_installed.rc == 0
+  when: rke2_installed | length > 0
 
 - name: Install RKE2 {{ rke2_version }}
-  when: rke2_installed.rc != 0 or rke2_version not in rke2_installed.stdout
+  when: rke2_version not in rke2_installed
   block:
     - name: Download the RKE2 install script
       ansible.builtin.get_url:

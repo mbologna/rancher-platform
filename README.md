@@ -72,7 +72,7 @@ Run these from `ansible/`. Extra arguments go to `ansible-playbook`.
 | `./manage.sh status` | Shows node, pod and Rancher status. |
 | `./manage.sh kubeconfig` | Fetches the kubeconfig to `~/.kube/rancher-platform.yaml`. |
 | `./manage.sh uninstall-rancher` | Removes Rancher and cert-manager; RKE2 stays. |
-| `./manage.sh reset` | **Deletes all cluster and Docker data** on the host, then deploys. |
+| `./manage.sh reset` | **Deletes all cluster and Docker data** on the host, then deploys. Removes RKE2, K3s, kind and k3d, whoever installed them. |
 
 ## Configuration
 
@@ -117,7 +117,12 @@ the [RKE2 restore procedure](https://docs.rke2.io/datastore/backup_restore).
 `deploy` disables firewalld and ufw, sets SELinux to permissive, installs Docker and a Python
 virtualenv, writes kernel settings, adds `rancher_hostname` to `/etc/hosts`, and installs RKE2,
 `kubectl`, `helm` and helper scripts (`cluster-status`, `rancher-logs`) in `/usr/local/bin`.
-It does not remove existing workloads; only `reset` does.
+It also sets Rancher's server URL, which Rancher otherwise leaves empty until the first UI login
+and without which it cannot import clusters.
+
+`deploy` does not remove existing workloads; only `reset` does. On a host that already runs
+RKE2 or K3s installed by other means, or where another service holds port 80, 443, 6443, 9345
+or 10250 (kind, for example), `deploy` stops before installing anything and points to `reset`.
 
 ## Remove everything
 

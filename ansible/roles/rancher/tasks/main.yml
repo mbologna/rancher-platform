@@ -48,6 +48,27 @@
   retries: 30
   delay: 10
 
+# Rancher fills server-url at the first UI login; until then it cannot import clusters.
+- name: Read the Rancher server URL
+  kubernetes.core.k8s_info:
+    api_version: management.cattle.io/v3
+    kind: Setting
+    name: server-url
+  register: rancher_server_url
+  until: rancher_server_url.resources | default([]) | length > 0
+  retries: 20
+  delay: 15
+
+- name: Set the Rancher server URL when empty
+  kubernetes.core.k8s:
+    api_version: management.cattle.io/v3
+    kind: Setting
+    name: server-url
+    state: patched
+    definition:
+      value: https://{{ rancher_hostname }}
+  when: rancher_server_url.resources[0].value | default('') | length == 0
+
 # Both TLS sources use an Issuer named "rancher", so switching source keeps the old certificate.
 # Compare the signing CA with the configured source and re-issue on mismatch.
 - name: Read the CA that signed the ingress certificate

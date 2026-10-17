@@ -11,6 +11,8 @@
     mode: "0600"
   delegate_to: localhost
   become: false
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
 
 - name: Show cluster status
   ansible.builtin.command: "{{ bin_dir }}/cluster-status"
