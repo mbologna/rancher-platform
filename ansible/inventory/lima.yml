@@ -1,0 +1,9 @@
+---
+# Written by local/lima.sh for the Lima VM "rancher-platform".
+servers:
+  hosts:
+    rancher-platform:
+      ansible_host: 192.168.64.9
+      ansible_user: lima
+      ansible_ssh_private_key_file: ~/.lima/_config/user
+      rancher_hostname: rancher.192.168.64.9.sslip.io

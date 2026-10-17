@@ -78,6 +78,8 @@ case "${COMMAND}" in
         run_module ansible.builtin.command /usr/local/bin/cluster-status "$@"
         ;;
     kubeconfig)
+        # The kubeconfig holds cluster-admin credentials: create it readable only by you.
+        umask 077
         # shellcheck disable=SC2016 # Ansible expands the {{ }} variables from group_vars.
         run_module ansible.builtin.fetch 'src={{ rke2_kubeconfig_external }} dest={{ local_kubeconfig }} flat=true' "$@"
         ;;
