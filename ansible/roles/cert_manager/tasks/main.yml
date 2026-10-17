@@ -14,4 +14,4 @@
       webhook:
         timeoutSeconds: 30
     wait: true
-    wait_timeout: 600s
+    timeout: 600s

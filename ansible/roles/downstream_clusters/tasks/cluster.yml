@@ -33,6 +33,16 @@
   when: downstream_clusters_coredns is changed # noqa: no-handler -- per-cluster, inside a loop
   changed_when: true
 
+- name: Look up the Rancher cluster {{ downstream_clusters_name }}
+  kubernetes.core.k8s_info:
+    api_version: provisioning.cattle.io/v1
+    kind: Cluster
+    namespace: fleet-default
+    name: "{{ downstream_clusters_name }}"
+  register: downstream_clusters_existing
+
+# The RKE2 admin is not a Rancher user, so a new cluster gets no creator. Rancher's webhook rejects this
+# annotation on a cluster that already has one.
 - name: Register the Rancher cluster {{ downstream_clusters_name }}
   kubernetes.core.k8s:
     definition:
@@ -42,6 +52,9 @@
         name: "{{ downstream_clusters_name }}"
         namespace: fleet-default
         labels: "{{ {downstream_clusters_label: 'true'} }}"
+        annotations: >-
+          {{ {} if downstream_clusters_existing.resources
+             else {'field.cattle.io/no-creator-rbac': 'true'} }}
       spec: {}
 
 - name: Wait for the registration manifest of {{ downstream_clusters_name }}
@@ -55,14 +68,60 @@
   retries: 30
   delay: 5
 
+- name: Note the Rancher ID of {{ downstream_clusters_name }}
+  ansible.builtin.set_fact:
+    downstream_clusters_id: "{{ downstream_clusters_cluster.resources[0].status.clusterName }}"
+
+# provisioning status.ready and the Connected condition both survive uninstall-rancher, so neither shows
+# that an agent still trusts Rancher. A redeploy with a new self-signed CA changes the checksum instead.
+- name: Read the Rancher CA
+  kubernetes.core.k8s_info:
+    api_version: management.cattle.io/v3
+    kind: Setting
+    name: cacerts
+  register: downstream_clusters_cacerts
+
+- name: Read the CA checksum of the agent in rp-{{ downstream_clusters_name }}
+  ansible.builtin.command: >-
+    {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }} -n cattle-system
+    get deployment cattle-cluster-agent
+    -o 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="CATTLE_CA_CHECKSUM")].value}'
+  register: downstream_clusters_agent_checksum
+  changed_when: false
+  failed_when: false
+
+# Mirrors CAChecksum() in Rancher's pkg/systemtemplate.
+- name: Compare the agent CA of {{ downstream_clusters_name }}
+  ansible.builtin.set_fact:
+    downstream_clusters_ca_current: >-
+      {{ downstream_clusters_agent_checksum.rc == 0
+         and downstream_clusters_agent_checksum.stdout == rancher_ca_checksum }}
+  vars:
+    rancher_ca: "{{ downstream_clusters_cacerts.resources[0].value | default('') }}"
+    newline: "\n"
+    rancher_ca_checksum: >-
+      {{ '' if rancher_ca == ''
+         else (rancher_ca ~ ('' if rancher_ca.endswith(newline) else newline)) | hash('sha256') }}
+
+# Give an agent that trusts the CA a minute to reconnect after a Rancher restart.
+- name: Check the agent connection of {{ downstream_clusters_name }}
+  ansible.builtin.command: >-
+    {{ kubectl_bin }} wait clusters.management.cattle.io/{{ downstream_clusters_id }} --for=condition=Connected
+    --timeout=60s
+  register: downstream_clusters_connected
+  when: downstream_clusters_ca_current | bool
+  changed_when: false
+  failed_when: false
+
+# Re-applying the manifest also updates the agent's Rancher CA checksum.
 - name: Import the cluster {{ downstream_clusters_name }}
-  when: not (downstream_clusters_cluster.resources[0].status.ready | default(false))
+  when: not downstream_clusters_ca_current | bool or downstream_clusters_connected.rc != 0
   block:
     - name: Read the registration token of {{ downstream_clusters_name }}
       kubernetes.core.k8s_info:
         api_version: management.cattle.io/v3
         kind: ClusterRegistrationToken
-        namespace: "{{ downstream_clusters_cluster.resources[0].status.clusterName }}"
+        namespace: "{{ downstream_clusters_id }}"
       register: downstream_clusters_token
       until: >-
         downstream_clusters_token.resources | map(attribute='status.manifestUrl', default='')
@@ -82,7 +141,7 @@
       kubernetes.core.k8s_info:
         api_version: v1
         kind: Secret
-        namespace: "{{ downstream_clusters_cluster.resources[0].status.clusterName }}"
+        namespace: "{{ downstream_clusters_id }}"
         name: "{{ downstream_clusters_token_status.tokenSecretName }}"
       register: downstream_clusters_token_secret
       when: downstream_clusters_token_status.tokenSecretName | default('') | length > 0
@@ -106,6 +165,37 @@
         {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }}
         apply -f {{ rancher_dev_dir }}/import-{{ downstream_clusters_name }}.yaml
       changed_when: true
+
+    # The registration manifest deploys an agent without Rancher's feature flags, so the agent never opens
+    # the tunnel behind the Connected condition. Rancher only replaces it on its own for a new cluster.
+    - name: Ask Rancher to redeploy the agent of {{ downstream_clusters_name }}
+      ansible.builtin.command: >-
+        {{ kubectl_bin }} annotate --overwrite clusters.management.cattle.io/{{ downstream_clusters_id }}
+        io.cattle.agent.force.deploy=true
+      changed_when: true
+
+    - name: Wait for Rancher to deploy the agent of {{ downstream_clusters_name }}
+      ansible.builtin.command: >-
+        {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }} -n cattle-system
+        get deployment cattle-cluster-agent
+        -o 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="CATTLE_FEATURES")].value}'
+      register: downstream_clusters_agent_features
+      until: downstream_clusters_agent_features.stdout | length > 0
+      retries: 60
+      delay: 10
+      changed_when: false
+
+    - name: Wait for the agent rollout in rp-{{ downstream_clusters_name }}
+      ansible.builtin.command: >-
+        {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }} -n cattle-system
+        rollout status deployment cattle-cluster-agent --timeout=600s
+      changed_when: false
+
+    - name: Wait for the agent connection of {{ downstream_clusters_name }}
+      ansible.builtin.command: >-
+        {{ kubectl_bin }} wait clusters.management.cattle.io/{{ downstream_clusters_id }}
+        --for=condition=Connected --timeout=600s
+      changed_when: false
 
     - name: Wait for Rancher to report ready on {{ downstream_clusters_name }}
       kubernetes.core.k8s_info:
