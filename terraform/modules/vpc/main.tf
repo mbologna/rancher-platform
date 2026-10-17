@@ -3,6 +3,8 @@ locals {
   vpc_id     = local.create_vpc ? aws_vpc.this[0].id : var.existing_vpc_id
 }
 
+# A single-host lab VPC; flow logs would cost more than the host they watch.
+# trivy:ignore:AWS-0178
 resource "aws_vpc" "this" {
   count                = local.create_vpc ? 1 : 0
   cidr_block           = var.vpc_cidr
@@ -32,9 +34,11 @@ locals {
 }
 
 resource "aws_subnet" "public" {
-  vpc_id                  = local.vpc_id
-  cidr_block              = var.subnet_cidr
-  availability_zone       = var.availability_zone
+  vpc_id            = local.vpc_id
+  cidr_block        = var.subnet_cidr
+  availability_zone = var.availability_zone
+  # The host needs internet access at boot, before the Elastic IP is attached.
+  # trivy:ignore:AWS-0164
   map_public_ip_on_launch = true
 
   tags = merge(var.tags, { Name = "${var.name}-public-subnet" })
