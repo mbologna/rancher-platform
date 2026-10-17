@@ -48,6 +48,19 @@ the CIDRs you set, and ports 80 and 443 from anywhere. The root volume is encryp
 account's default EBS key; hosts created before this setting existed are replaced on the next
 `tofu apply`.
 
+## Run locally
+
+On a Mac with [Lima](https://lima-vm.io/), `local/lima.sh up` creates an openSUSE Leap 16 VM
+with 4 vCPUs, 12 GiB of RAM and a 60 GiB disk, and writes `ansible/inventory/lima.yml`. Rancher
+then answers on `rancher.<vm-ip>.sslip.io` from the Mac. Tested on Apple silicon on 17 October
+2026.
+
+```bash
+./local/lima.sh up
+cd ansible && ./manage.sh deploy -i inventory/lima.yml
+./local/lima.sh down   # deletes the VM
+```
+
 ## Commands
 
 Run these from `ansible/`. Extra arguments go to `ansible-playbook`.

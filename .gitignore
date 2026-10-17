@@ -24,6 +24,7 @@ ansible/group_vars/all/secrets.yml
 
 # Inventory files with real hostnames — never commit these
 ansible/inventory/hosts.yml
+ansible/inventory/lima.yml
 
 # Terraform
 terraform/.terraform/
