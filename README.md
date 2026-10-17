@@ -71,6 +71,8 @@ Settings and pinned versions live in
 | `rke2_ingress_controller` | `traefik` | `traefik` or `ingress-nginx`. |
 | `selinux_mode` | `permissive` | `""` leaves SELinux alone. |
 | `install_docker` | `true` | Installs Docker on the host. |
+| `rke2_etcd_snapshot_schedule` | `0 */12 * * *` | Cron schedule for etcd snapshots; `rke2_etcd_snapshot_retention` keeps 5. |
+| `rke2_etcd_s3_bucket` | | Also uploads snapshots to this S3 bucket. |
 
 Let's Encrypt needs `rancher_hostname` to resolve publicly to the host, with port 80 open to
 the internet. For example:
@@ -85,6 +87,13 @@ To encrypt the password file, run `ansible-vault encrypt group_vars/all/secrets.
 Renovate proposes version updates. RKE2, cert-manager and Rancher updates are never merged
 automatically. `deploy` refuses to skip a Kubernetes minor version on an existing host: to go
 from RKE2 1.34 to 1.36, deploy once with `-e rke2_version=<a v1.35.x release>` first.
+
+## Back up and restore
+
+RKE2 snapshots etcd, which holds all cluster and Rancher state, to
+`/var/lib/rancher/rke2/server/db/snapshots` on the host. Set `rke2_etcd_s3_bucket`, plus keys in
+`secrets.yml` if the host has no AWS credentials, to keep copies off the host. To restore, follow
+the [RKE2 restore procedure](https://docs.rke2.io/datastore/backup_restore).
 
 ## What deploy changes on the host
 

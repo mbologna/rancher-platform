@@ -4,3 +4,18 @@ ingress-controller: {{ rke2_ingress_controller }}
 tls-san:
   - {{ rancher_hostname }}
   - {{ ansible_host }}
+etcd-snapshot-schedule-cron: "{{ rke2_etcd_snapshot_schedule }}"
+etcd-snapshot-retention: {{ rke2_etcd_snapshot_retention }}
+{% if rke2_etcd_s3_bucket | length > 0 %}
+etcd-s3: true
+etcd-s3-bucket: {{ rke2_etcd_s3_bucket }}
+etcd-s3-region: {{ rke2_etcd_s3_region }}
+etcd-s3-endpoint: {{ rke2_etcd_s3_endpoint }}
+{% if rke2_etcd_s3_folder | length > 0 %}
+etcd-s3-folder: {{ rke2_etcd_s3_folder }}
+{% endif %}
+{% if rke2_etcd_s3_access_key is defined %}
+etcd-s3-access-key: {{ rke2_etcd_s3_access_key | to_json }}
+etcd-s3-secret-key: {{ rke2_etcd_s3_secret_key | to_json }}
+{% endif %}
+{% endif %}

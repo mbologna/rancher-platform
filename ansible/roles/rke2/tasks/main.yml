@@ -47,6 +47,7 @@
     src: config.yaml.j2
     dest: /etc/rancher/rke2/config.yaml
     mode: "0600"
+  no_log: "{{ rke2_etcd_s3_secret_key is defined }}"
   notify: Restart rke2
 
 - name: Apply pending RKE2 (re)starts (first start can take several minutes)
