@@ -1,0 +1,78 @@
+---
+# Deploys RKE2, cert-manager and Rancher on the runner itself, then checks that a second deploy
+# changes nothing and that Rancher answers. Nothing leaves the runner.
+name: E2E
+
+on:
+  pull_request:
+    paths:
+      - ansible/**
+      - .github/workflows/e2e.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: ansible
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Install Ansible
+        run: |
+          pip install -r requirements-ci.txt
+          ./manage.sh install
+
+      # The runner is the target host. Docker is already installed, so the playbook leaves it alone.
+      - name: Write the inventory and secrets
+        run: |
+          ip=$(hostname -I | awk '{print $1}')
+          cat > inventory/hosts.yml <<INVENTORY
+          servers:
+            hosts:
+              runner:
+                ansible_connection: local
+                ansible_host: ${ip}
+                ansible_user: ${USER}
+                rancher_hostname: rancher.${ip}.sslip.io
+                install_docker: false
+          INVENTORY
+          password=$(openssl rand -hex 16)
+          echo "::add-mask::${password}"
+          echo "rancher_bootstrap_password: \"${password}\"" > group_vars/all/secrets.yml
+          echo "RANCHER_HOSTNAME=rancher.${ip}.sslip.io" >> "${GITHUB_ENV}"
+
+      - name: Deploy
+        run: ./manage.sh deploy
+
+      - name: Deploy again and expect no changes
+        run: |
+          ./manage.sh deploy | tee "${RUNNER_TEMP}/rerun.log"
+          grep -E '^runner +: .* changed=0 .* failed=0 ' "${RUNNER_TEMP}/rerun.log"
+
+      - name: Check that Rancher answers
+        run: |
+          test "$(curl -fsSk "https://${RANCHER_HOSTNAME}/ping")" = pong
+          /usr/local/bin/kubectl --kubeconfig ~/.kube/rancher-platform.yaml get nodes
+
+      - name: Show cluster state
+        if: failure()
+        run: |
+          sudo /usr/local/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get pods -A || true
+          sudo journalctl -u rke2-server --no-pager -n 100 || true
+          df -h /
