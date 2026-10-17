@@ -111,11 +111,11 @@ variable "rancher_hostname" {
 variable "ami_name_filter" {
   description = "AMI name pattern for the management node (openSUSE Leap 16.0 by default)"
   type        = string
-  default     = "openSUSE-Leap-16-0-v*-hvm-ssd-x86_64"
+  default     = "openSUSE-Leap-16-0-v*-hvm-ssd-x86_64*"
 }
 
 variable "ami_owner" {
   description = "AWS account that publishes the AMI (SUSE)"
   type        = string
-  default     = "013907871322"
+  default     = "679593333241"
 }

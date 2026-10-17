@@ -41,13 +41,13 @@ variable "key_name" {
 variable "ami_name_filter" {
   description = "AMI name pattern"
   type        = string
-  default     = "openSUSE-Leap-16-0-v*-hvm-ssd-x86_64"
+  default     = "openSUSE-Leap-16-0-v*-hvm-ssd-x86_64*"
 }
 
 variable "ami_owner" {
   description = "AWS account that publishes the AMI"
   type        = string
-  default     = "013907871322" # SUSE
+  default     = "679593333241" # SUSE (via AWS Marketplace)
 }
 
 variable "tags" {
