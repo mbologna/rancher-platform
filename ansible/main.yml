@@ -1,98 +1,98 @@
 ---
-- name: Bootstrap Python on target hosts
-  hosts: servers
-  gather_facts: false
-  become: true
-  tasks:
-    # ansible-core needs Python >= 3.8 on the target. SLE/Leap 15 ship 3.6, so install 3.11 there.
-    - name: Check for a usable python3
-      ansible.builtin.raw: python3 -c 'import sys; sys.exit(sys.version_info < (3, 8))'
-      register: python3_ok
-      changed_when: false
-      failed_when: false
+- name: Wait for the RKE2 ingress controller to roll out
+  ansible.builtin.command: >-
+    {{ kubectl_bin }} -n kube-system rollout status
+    daemonset/{{ rancher_ingress_daemonset[rke2_ingress_controller] }} --timeout=30s
+  register: rancher_ingress_ready
+  until: rancher_ingress_ready.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
 
-    - name: Check for python3.11
-      ansible.builtin.raw: test -x /usr/bin/python3.11
-      register: python311_ok
-      changed_when: false
-      failed_when: false
-      when: python3_ok.rc != 0
+- name: Install or upgrade Rancher {{ rancher_version }}
+  kubernetes.core.helm:
+    name: rancher
+    chart_ref: rancher
+    chart_repo_url: "{{ rancher_chart_repo }}"
+    chart_version: "{{ rancher_version }}"
+    release_namespace: cattle-system
+    create_namespace: true
+    binary_path: "{{ helm_bin }}"
+    values:
+      hostname: "{{ rancher_hostname }}"
+      replicas: 1
+      bootstrapPassword: "{{ rancher_bootstrap_password }}"
+      ingress:
+        tls:
+          source: "{{ rancher_tls_source }}"
+      letsEncrypt:
+        email: "{{ rancher_letsencrypt_email }}"
+        environment: "{{ rancher_letsencrypt_environment }}"
+        ingress:
+          class: "{{ rancher_ingress_class[rke2_ingress_controller] }}"
+      networkExposure: # required by Rancher v2.14+
+        type: ingress
+      rancherNamespaces:
+        enabled: false
+    wait: true
+    wait_timeout: 600s
 
-    - name: Install Python 3.11 on SLE/Leap 15
-      when: python3_ok.rc != 0 and python311_ok.rc != 0
-      block:
-        - name: Enable the SLE Python 3 module (SLES only; no-op elsewhere)
-          ansible.builtin.raw: >-
-            . /etc/os-release;
-            if [ "$ID" = sles ]; then suseconnect -p "sle-module-python3/${VERSION_ID}/$(uname -m)"; fi
-          changed_when: true
+- name: Wait for the Rancher API to answer through the ingress
+  ansible.builtin.uri:
+    url: https://{{ rancher_hostname }}/ping
+    validate_certs: false
+  register: rancher_ping
+  until: rancher_ping.status | default(0) == 200
+  retries: 30
+  delay: 10
 
-        - name: Install python311
-          ansible.builtin.raw: zypper --non-interactive install python311
-          changed_when: true
+# Both TLS sources use an Issuer named "rancher", so switching source keeps the old certificate.
+# Compare the signing CA with the configured source and re-issue on mismatch.
+- name: Read the CA that signed the ingress certificate
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    {{ kubectl_bin }} -n cattle-system get secret tls-rancher-ingress -o jsonpath='{.data.tls\.crt}'
+    | base64 -d | openssl x509 -noout -issuer
+  args:
+    executable: /bin/bash
+  register: rancher_cert_issuer
+  until: rancher_cert_issuer.rc == 0
+  retries: 20
+  delay: 15
+  changed_when: false
 
-    # Kept out of ansible_python_interpreter: a set_fact there would outrank the per-role venv below.
-    - name: Record the system Python for the deploy play
-      ansible.builtin.set_fact:
-        base_python: >-
-          {{ ansible_python_interpreter if ansible_python_interpreter is defined
-             else '/usr/bin/python3' if python3_ok.rc == 0 else '/usr/bin/python3.11' }}
+- name: Re-issue the ingress certificate from the configured source
+  ansible.builtin.command: "{{ kubectl_bin }} -n cattle-system delete secret tls-rancher-ingress"
+  when: rancher_tls_issuer_cn[rancher_tls_source] not in rancher_cert_issuer.stdout
+  changed_when: true
 
-    - name: Gather facts
-      ansible.builtin.setup:
-      vars:
-        ansible_python_interpreter: "{{ base_python }}"
+- name: Wait for the certificate from the configured source
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    {{ kubectl_bin }} -n cattle-system get secret tls-rancher-ingress -o jsonpath='{.data.tls\.crt}'
+    | base64 -d | openssl x509 -noout -issuer
+  args:
+    executable: /bin/bash
+  register: rancher_cert_reissued
+  until: rancher_cert_reissued.rc == 0 and rancher_tls_issuer_cn[rancher_tls_source] in rancher_cert_reissued.stdout
+  retries: 20
+  delay: 15
+  changed_when: false
+  when: rancher_tls_issuer_cn[rancher_tls_source] not in rancher_cert_issuer.stdout
 
-    - name: Validate required settings
-      ansible.builtin.assert:
-        that:
-          - rancher_hostname is defined
-          - rancher_bootstrap_password is defined
-          - rancher_bootstrap_password != 'CHANGE_ME'
-          - rancher_bootstrap_password | length >= 12
-        fail_msg: >-
-          Set rancher_hostname in the inventory and rancher_bootstrap_password (12+ characters) in
-          group_vars/all/secrets.yml (copy secrets.yml.example).
-        quiet: true
-
-- name: Deploy RKE2 + Rancher Manager
-  hosts: servers
-  gather_facts: false
-  become: true
-  vars:
-    ansible_python_interpreter: "{{ base_python }}"
-  environment:
-    PATH: "{{ bin_dir }}:/usr/sbin:/usr/bin:/sbin:/bin"
-    KUBECONFIG: "{{ rke2_kubeconfig }}"
-    K8S_AUTH_KUBECONFIG: "{{ rke2_kubeconfig }}"
-
-  roles:
-    - role: system_reset
-      when: reset | bool
-      tags: [reset]
-    - role: base
-      tags: [base]
-    - role: helm
-      tags: [helm]
-    - role: rke2
-      tags: [rke2]
-    - role: cert_manager
-      vars:
-        ansible_python_interpreter: "{{ k8s_python }}"
-      tags: [cert_manager]
-    - role: rancher
-      vars:
-        ansible_python_interpreter: "{{ k8s_python }}"
-      tags: [rancher]
-    - role: fleet_gitrepo
-      when: fleet_gitrepo_enabled | bool
-      vars:
-        ansible_python_interpreter: "{{ k8s_python }}"
-      tags: [fleet]
-    - role: dev_tools
-      tags: [dev_tools]
-
-  post_tasks:
-    - name: Show summary
-      ansible.builtin.include_tasks: tasks/summary.yml
-      tags: [always]
+# Rancher v2.14+ deploys Turtles as a system chart and manages the CAPI CoreProvider itself.
+# CAPI providers are installed by rancher-fleet-clusters.
+- name: Wait for the Turtles controller to become available
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name: rancher-turtles-controller-manager
+    namespace: cattle-turtles-system
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 60
+  register: rancher_turtles
+  until: rancher_turtles.resources | default([]) | length > 0 # transient API errors return no resources
+  retries: 20
+  delay: 15

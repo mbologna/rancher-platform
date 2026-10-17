@@ -24,7 +24,12 @@
       bootstrapPassword: "{{ rancher_bootstrap_password }}"
       ingress:
         tls:
-          source: rancher
+          source: "{{ rancher_tls_source }}"
+      letsEncrypt:
+        email: "{{ rancher_letsencrypt_email }}"
+        environment: "{{ rancher_letsencrypt_environment }}"
+        ingress:
+          class: "{{ rancher_ingress_class[rke2_ingress_controller] }}"
       networkExposure: # required by Rancher v2.14+
         type: ingress
       rancherNamespaces:
@@ -40,6 +45,40 @@
   until: rancher_ping.status | default(0) == 200
   retries: 30
   delay: 10
+
+# Both TLS sources use an Issuer named "rancher", so switching source keeps the old certificate.
+# Compare the signing CA with the configured source and re-issue on mismatch.
+- name: Read the CA that signed the ingress certificate
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    {{ kubectl_bin }} -n cattle-system get secret tls-rancher-ingress -o jsonpath='{.data.tls\.crt}'
+    | base64 -d | openssl x509 -noout -issuer
+  args:
+    executable: /bin/bash
+  register: rancher_cert_issuer
+  until: rancher_cert_issuer.rc == 0
+  retries: 20
+  delay: 15
+  changed_when: false
+
+- name: Re-issue the ingress certificate from the configured source
+  ansible.builtin.command: "{{ kubectl_bin }} -n cattle-system delete secret tls-rancher-ingress"
+  when: rancher_tls_issuer_cn[rancher_tls_source] not in rancher_cert_issuer.stdout
+  changed_when: true
+
+- name: Wait for the certificate from the configured source
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    {{ kubectl_bin }} -n cattle-system get secret tls-rancher-ingress -o jsonpath='{.data.tls\.crt}'
+    | base64 -d | openssl x509 -noout -issuer
+  args:
+    executable: /bin/bash
+  register: rancher_cert_reissued
+  until: rancher_cert_reissued.rc == 0 and rancher_tls_issuer_cn[rancher_tls_source] in rancher_cert_reissued.stdout
+  retries: 20
+  delay: 15
+  changed_when: false
+  when: rancher_tls_issuer_cn[rancher_tls_source] not in rancher_cert_issuer.stdout
 
 # Rancher v2.14+ deploys Turtles as a system chart and manages the CAPI CoreProvider itself.
 # CAPI providers are installed by rancher-fleet-clusters.

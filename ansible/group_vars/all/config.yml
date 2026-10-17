@@ -13,6 +13,12 @@ cert_manager_version: "v1.21.2"
 # renovate: datasource=helm depName=rancher registryUrl=https://releases.rancher.com/server-charts/stable
 rancher_version: "2.15.2"
 rancher_chart_repo: https://releases.rancher.com/server-charts/stable
+# TLS for the Rancher ingress: "rancher" (self-signed CA) or "letsEncrypt" (HTTP-01; port 80 must be
+# reachable from the internet and rancher_hostname must resolve publicly).
+rancher_tls_source: rancher
+rancher_letsencrypt_email: ""
+# "production" or "staging" (staging certificates are untrusted but have looser rate limits).
+rancher_letsencrypt_environment: production
 
 # renovate: datasource=github-releases depName=helm/helm
 helm_version: "v3.22.1"
