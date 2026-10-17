@@ -18,7 +18,7 @@
       - "Rancher UI:  https://{{ rancher_hostname }}  (admin / rancher_bootstrap_password from secrets.yml)"
       - "Kubeconfig:  export KUBECONFIG={{ local_kubeconfig }}"
       - "SSH:         ssh {{ ansible_user | default('root') }}@{{ ansible_host }}  (kubectl works out of the box)"
-      - "Helpers:     cluster-status, rancher-logs, port-forward-rancher, uninstall-rancher (as root)"
+      - "Helpers:     cluster-status, rancher-logs, port-forward-rancher, uninstall-rancher (sudo -i)"
       - "{{ summary_fleet_done if fleet_gitrepo_enabled | bool else summary_fleet_next }}"
     summary_fleet_done: "Fleet:       rancher-fleet-clusters registered as a GitRepo in fleet-local"
     summary_fleet_next: >-

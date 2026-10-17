@@ -104,7 +104,7 @@ When the playbook finishes:
 - Rancher answers at `https://<rancher_hostname>` (user `admin`).
 - The kubeconfig is fetched to `~/.kube/rancher-platform.yaml` on your machine.
 - `kubectl` works for the SSH user on the host.
-- Turtles (bundled with Rancher v2.14) is running and manages the CAPI core provider.
+- Turtles (bundled with Rancher v2.14+) is running and manages the CAPI core provider.
 
 **Next**: register [rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters) in
 Fleet to install CAPI providers, ClusterClasses and example clusters. Either follow that repo's

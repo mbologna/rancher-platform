@@ -75,6 +75,7 @@
     - /run/flannel
     - /etc/cni/net.d
     - /opt/cni/bin
+    - /opt/rke2
     - "{{ bin_dir }}/kind"
     - "{{ bin_dir }}/k3d"
     - "{{ kubectl_bin }}"

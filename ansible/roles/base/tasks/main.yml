@@ -8,7 +8,7 @@
     state: stopped
     enabled: false
   loop: [firewalld.service, ufw.service]
-  when: item in ansible_facts.services
+  when: ansible_facts.services[item].status | default('not-found') != 'not-found'
 
 - name: Read SELinux mode
   ansible.builtin.command: getenforce

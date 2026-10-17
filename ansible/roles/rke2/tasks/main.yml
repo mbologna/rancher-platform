@@ -1,6 +1,6 @@
 ---
 - name: Check installed RKE2 version
-  ansible.builtin.command: rke2 --version
+  ansible.builtin.command: "{{ rke2_install_prefix }}/bin/rke2 --version"
   register: rke2_installed
   changed_when: false
   failed_when: false
@@ -19,6 +19,7 @@
       ansible.builtin.command: /usr/local/share/rke2-install.sh
       environment:
         INSTALL_RKE2_VERSION: "{{ rke2_version }}"
+        INSTALL_RKE2_TAR_PREFIX: "{{ rke2_install_prefix }}"
       changed_when: true
       notify: Restart rke2
 

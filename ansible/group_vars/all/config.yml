@@ -10,9 +10,9 @@ rke2_ingress_controller: ingress-nginx
 cert_manager_version: "v1.20.1"
 
 # Rancher v2.14+ bundles Turtles v0.26 (CAPI v1.12.x), so no separate Turtles install is needed.
-# renovate: datasource=helm depName=rancher registryUrl=https://releases.rancher.com/server-charts/latest
-rancher_version: "2.14.6"
-rancher_chart_repo: https://releases.rancher.com/server-charts/latest
+# renovate: datasource=helm depName=rancher registryUrl=https://releases.rancher.com/server-charts/stable
+rancher_version: "2.15.2"
+rancher_chart_repo: https://releases.rancher.com/server-charts/stable
 
 # renovate: datasource=github-releases depName=helm/helm
 helm_version: "v3.22.1"
@@ -43,5 +43,7 @@ k8s_python: "{{ k8s_venv }}/bin/python"
 bin_dir: /usr/local/bin
 kubectl_bin: "{{ bin_dir }}/kubectl"
 helm_bin: "{{ bin_dir }}/helm"
+# Pinned because get.rke2.io falls back to /opt/rke2 when /usr/local is a mount point (Leap 16 btrfs).
+rke2_install_prefix: /usr/local
 
 # Credentials live in secrets.yml (gitignored). Copy secrets.yml.example to get started.
