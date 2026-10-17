@@ -87,8 +87,9 @@ the internet. For example:
 To encrypt the password file, run `ansible-vault encrypt group_vars/all/secrets.yml`;
 `manage.sh` then asks for the vault password.
 
-Renovate proposes version updates. RKE2, cert-manager and Rancher updates are never merged
-automatically. `deploy` refuses to skip a Kubernetes minor version on an existing host: to go
+Renovate proposes version updates. Patch updates of RKE2, cert-manager and Rancher merge
+automatically once the [E2E workflow](.github/workflows/e2e.yml) has deployed them; minor and
+major updates wait for review. `deploy` refuses to skip a Kubernetes minor version on an existing host: to go
 from RKE2 1.34 to 1.36, deploy once with `-e rke2_version=<a v1.35.x release>` first.
 
 ## Back up and restore
@@ -127,6 +128,11 @@ pre-commit run --all-files
 
 The hooks run yamllint, shellcheck, ansible-lint, actionlint, `tofu fmt` and tflint; the
 [Lint workflow](.github/workflows/lint.yml) runs them on every pull request.
+
+On pull requests that change `ansible/`, the [E2E workflow](.github/workflows/e2e.yml) deploys the
+platform on the GitHub runner itself, deploys again expecting no changes, and checks that Rancher
+answers. It uses no cloud resources.
+
 The [Security workflow](.github/workflows/security.yml) scans the Terraform with trivy and the
 workflows with zizmor, and reports findings under Security > Code scanning.
 
