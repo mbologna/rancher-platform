@@ -22,6 +22,11 @@ repos:
     hooks:
       - id: shellcheck
 
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
   - repo: https://github.com/ansible/ansible-lint
     rev: v26.10.1
     hooks:
