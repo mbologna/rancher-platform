@@ -115,5 +115,7 @@ pre-commit run --all-files
 
 The hooks run yamllint, shellcheck, ansible-lint, actionlint, `tofu fmt` and tflint; the
 [Lint workflow](.github/workflows/lint.yml) runs them on every pull request.
+The [Security workflow](.github/workflows/security.yml) scans the Terraform with trivy and the
+workflows with zizmor, and reports findings under Security > Code scanning.
 
 Licensed under the [Apache License 2.0](LICENSE).
