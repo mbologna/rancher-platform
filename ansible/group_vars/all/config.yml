@@ -77,6 +77,10 @@ rancher_dev_dir: /root/.rancher-dev
 rke2_kubeconfig: /etc/rancher/rke2/rke2.yaml
 rke2_kubeconfig_external: "{{ rancher_dev_dir }}/rke2-kubeconfig-external.yaml"
 local_kubeconfig: ~/.kube/rancher-platform.yaml
+# The local kubeconfig reaches the local and downstream clusters through Rancher on port 443, with a
+# 30-day Rancher token. false fetches the RKE2 admin kubeconfig instead (port 6443, local cluster only).
+kubeconfig_via_rancher: true
+kubeconfig_refresh: false
 k8s_venv: /opt/rancher-platform/venv
 k8s_python: "{{ k8s_venv }}/bin/python"
 bin_dir: /usr/local/bin

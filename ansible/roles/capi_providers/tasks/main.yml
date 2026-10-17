@@ -22,7 +22,7 @@
           or capi_providers_turtles_setting.resources[0].default).split('+up') | last }}
 
 # The chart is not published to a Helm repository outside Rancher Prime, so use the tagged source.
-- name: Download the Turtles source {{ capi_providers_turtles_version }}
+- name: Download the Turtles source
   ansible.builtin.get_url:
     url: https://github.com/rancher/turtles/archive/refs/tags/v{{ capi_providers_turtles_version }}.tar.gz
     dest: "{{ rancher_dev_dir }}/turtles-{{ capi_providers_turtles_version }}.tar.gz"

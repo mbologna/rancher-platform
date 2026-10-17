@@ -2,6 +2,7 @@
 *.retry
 *.log
 ansible_collections/
+ansible/collections/
 
 # Secrets — never commit credentials
 ansible/group_vars/all/secrets.yml

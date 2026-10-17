@@ -40,7 +40,7 @@ A fresh deploy takes about seven minutes. A re-run that changes nothing takes ab
    ```
 
 Rancher then answers at `https://<rancher_hostname>`. Log in as `admin` with the password from
-step 2. The kubeconfig is at `~/.kube/rancher-platform.yaml`.
+step 2. The kubeconfig is at `~/.kube/rancher-platform.yaml`; see [Kubeconfig](#kubeconfig).
 
 On AWS the hostname defaults to `rancher.<elastic-ip>.sslip.io`, and `tofu apply` writes the
 inventory that `manage.sh` uses. The security group admits SSH and the Kubernetes API only from
@@ -70,8 +70,8 @@ Run these from `ansible/`. Extra arguments go to `ansible-playbook`.
 | `./manage.sh install` | Installs the pinned Ansible collections. |
 | `./manage.sh deploy` | Installs or upgrades everything to the pinned versions. |
 | `./manage.sh status` | Shows node, pod and Rancher status. |
-| `./manage.sh kubeconfig` | Fetches the kubeconfig to `~/.kube/rancher-platform.yaml`. |
-| `./manage.sh uninstall-rancher` | Removes Rancher and cert-manager; RKE2 stays. |
+| `./manage.sh kubeconfig` | Writes a new kubeconfig to `~/.kube/rancher-platform.yaml` and revokes the old one. |
+| `./manage.sh uninstall-rancher` | Removes Rancher and cert-manager; RKE2 and downstream clusters stay. |
 | `./manage.sh reset` | **Deletes all cluster and Docker data** on the host, then deploys. Removes RKE2, K3s, kind and k3d, whoever installed them. |
 
 ## Configuration
@@ -98,6 +98,19 @@ the internet. For example:
 ```bash
 ./manage.sh deploy -e rancher_tls_source=letsEncrypt -e rancher_letsencrypt_email=you@example.com
 ```
+
+## Kubeconfig
+
+`deploy` writes `~/.kube/rancher-platform.yaml` with one context per cluster: `local` for the
+Rancher host and one per [downstream cluster](#downstream-clusters-optional). Every context goes
+through Rancher on port 443 (`https://<rancher_hostname>/k8s/clusters/<id>`), so the file works
+from networks that block port 6443. It holds an `admin` token that expires after 30 days;
+`./manage.sh kubeconfig` replaces it and revokes the old one. `deploy` also replaces it when the
+clusters or Rancher's CA change.
+
+`deploy` logs in with `rancher_bootstrap_password`. If you change the `admin` password in the UI,
+set `rancher_admin_password` in `secrets.yml`; without it, `deploy` falls back to the direct RKE2
+kubeconfig on port 6443. Set `kubeconfig_via_rancher: false` to always use that file.
 
 To encrypt the password file, run `ansible-vault encrypt group_vars/all/secrets.yml`;
 `manage.sh` then asks for the vault password.
@@ -148,9 +161,11 @@ deploying again deletes that cluster from Rancher and kind; clusters that `deplo
 are left alone. Inside the clusters, CoreDNS resolves `rancher_hostname` to the host's private
 address, so agents reach Rancher without leaving the host.
 
-Get a kubeconfig for a downstream cluster from the Rancher UI, or on the host from
-`/root/.rancher-dev/kind-<name>.yaml`. `uninstall-rancher` leaves the kind clusters running, and
-they reconnect after the next `deploy`. `reset` deletes them, and `deploy` then creates them again.
+The [kubeconfig](#kubeconfig) has a context for each cluster; on the host, the direct kubeconfigs
+are in `/root/.rancher-dev/kind-<name>.yaml`. `uninstall-rancher` leaves the kind clusters running.
+A redeploy creates a new self-signed CA, which the agents reject, so `deploy` imports the clusters
+again and Rancher redeploys their agents. `reset` deletes the clusters, and `deploy` then creates
+them again.
 
 ## Cluster API (optional)
 

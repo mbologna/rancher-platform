@@ -1,19 +1,4 @@
 ---
-- name: Fetch the external kubeconfig to this machine
-  ansible.builtin.fetch:
-    src: "{{ rke2_kubeconfig_external }}"
-    dest: "{{ local_kubeconfig }}"
-    flat: true
-
-- name: Keep the local kubeconfig private
-  ansible.builtin.file:
-    path: "{{ local_kubeconfig }}"
-    mode: "0600"
-  delegate_to: localhost
-  become: false
-  vars:
-    ansible_python_interpreter: "{{ ansible_playbook_python }}"
-
 - name: Show cluster status
   ansible.builtin.command: "{{ bin_dir }}/cluster-status"
   register: summary_status

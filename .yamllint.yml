@@ -16,3 +16,4 @@ rules:
     forbid-explicit-octal: true
 ignore: |
   .terraform/
+  ansible/collections/

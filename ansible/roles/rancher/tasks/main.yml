@@ -37,7 +37,7 @@
       rancherNamespaces:
         enabled: false
     wait: true
-    wait_timeout: 600s
+    timeout: 600s
 
 - name: Wait for the Rancher API to answer through the ingress
   ansible.builtin.uri:

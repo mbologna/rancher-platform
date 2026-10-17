@@ -3,6 +3,7 @@
   hosts: servers
   gather_facts: false
   become: true
+  tags: [always]
   tasks:
     # ansible-core needs Python >= 3.8 on the target. SLE/Leap 15 ship 3.6, so install 3.11 there.
     - name: Check for a usable python3
@@ -105,6 +106,13 @@
       tags: [dev_tools]
 
   post_tasks:
+    - name: Write the local kubeconfig
+      ansible.builtin.include_tasks:
+        file: tasks/kubeconfig.yml
+        apply:
+          tags: [kubeconfig]
+      tags: [always]
+
     - name: Show summary
       ansible.builtin.include_tasks: tasks/summary.yml
       tags: [always]

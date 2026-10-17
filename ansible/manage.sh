@@ -14,7 +14,7 @@ Commands:
   deploy             Install or update RKE2, cert-manager and Rancher (idempotent)
   reset              Wipe RKE2/k3s/kind/k3d and all Docker data, then deploy from scratch
   status             Run cluster-status on all hosts
-  kubeconfig         Fetch the kubeconfig to ~/.kube/rancher-platform.yaml
+  kubeconfig         Write a fresh kubeconfig to ~/.kube/rancher-platform.yaml
   uninstall-rancher  Remove Rancher and cert-manager (RKE2 stays)
   help               Show this help
 
@@ -78,10 +78,9 @@ case "${COMMAND}" in
         run_module ansible.builtin.command /usr/local/bin/cluster-status "$@"
         ;;
     kubeconfig)
-        # The kubeconfig holds cluster-admin credentials: create it readable only by you.
-        umask 077
-        # shellcheck disable=SC2016 # Ansible expands the {{ }} variables from group_vars.
-        run_module ansible.builtin.fetch 'src={{ rke2_kubeconfig_external }} dest={{ local_kubeconfig }} flat=true' "$@"
+        set_inventory "$@"
+        set_vault "$@"
+        ansible-playbook main.yml ${INV[@]+"${INV[@]}"} ${VAULT[@]+"${VAULT[@]}"} --tags kubeconfig -e kubeconfig_refresh=true "$@"
         ;;
     uninstall-rancher)
         run_module ansible.builtin.command /usr/local/bin/uninstall-rancher "$@"
