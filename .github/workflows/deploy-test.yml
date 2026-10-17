@@ -17,8 +17,8 @@ on:
       ingress:
         description: RKE2 ingress controller
         type: choice
-        default: ingress-nginx
-        options: [ingress-nginx, traefik]
+        default: traefik
+        options: [traefik, ingress-nginx]
       region:
         description: AWS region
         default: eu-west-1

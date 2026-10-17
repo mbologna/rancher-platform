@@ -87,6 +87,11 @@
       vars:
         ansible_python_interpreter: "{{ k8s_python }}"
       tags: [rancher]
+    - role: capi_providers
+      when: capi_providers_enabled | bool
+      vars:
+        ansible_python_interpreter: "{{ k8s_python }}"
+      tags: [capi_providers]
     - role: fleet_gitrepo
       when: fleet_gitrepo_enabled | bool
       vars:

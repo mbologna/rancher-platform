@@ -23,6 +23,8 @@
       replicas: 1
       bootstrapPassword: "{{ rancher_bootstrap_password }}"
       ingress:
+        # Explicit, so switching rke2_ingress_controller moves the existing Ingress too.
+        ingressClassName: "{{ rancher_ingress_class[rke2_ingress_controller] }}"
         tls:
           source: "{{ rancher_tls_source }}"
       letsEncrypt:

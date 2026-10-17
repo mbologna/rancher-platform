@@ -1,0 +1,125 @@
+---
+# rancher-fleet-clusters owns provider versions and settings (platform/providers-values.yaml);
+# this role installs them with the rancher-turtles-providers chart.
+- name: Read the Turtles version Rancher installed
+  kubernetes.core.k8s_info:
+    api_version: management.cattle.io/v3
+    kind: Setting
+    name: rancher-turtles-version
+  register: capi_providers_turtles_setting
+  until: >-
+    capi_providers_turtles_setting.resources | default([]) | length > 0
+    and '+up' in (capi_providers_turtles_setting.resources[0].value | default('')
+                  or capi_providers_turtles_setting.resources[0].default | default(''))
+  retries: 20
+  delay: 15
+
+# The setting reads e.g. "110.0.2+up0.27.2"; the providers chart is versioned like Turtles.
+- name: Record the matching providers chart version
+  ansible.builtin.set_fact:
+    capi_providers_turtles_version: >-
+      {{ (capi_providers_turtles_setting.resources[0].value | default('')
+          or capi_providers_turtles_setting.resources[0].default).split('+up') | last }}
+
+# The chart is not published to a Helm repository outside Rancher Prime, so use the tagged source.
+- name: Download the Turtles source {{ capi_providers_turtles_version }}
+  ansible.builtin.get_url:
+    url: https://github.com/rancher/turtles/archive/refs/tags/v{{ capi_providers_turtles_version }}.tar.gz
+    dest: "{{ rancher_dev_dir }}/turtles-{{ capi_providers_turtles_version }}.tar.gz"
+    mode: "0644"
+
+- name: Unpack the Turtles source
+  ansible.builtin.unarchive:
+    src: "{{ rancher_dev_dir }}/turtles-{{ capi_providers_turtles_version }}.tar.gz"
+    dest: "{{ rancher_dev_dir }}"
+    remote_src: true
+    creates: "{{ rancher_dev_dir }}/turtles-{{ capi_providers_turtles_version }}/charts/rancher-turtles-providers"
+
+- name: Download the provider values from rancher-fleet-clusters
+  ansible.builtin.get_url:
+    url: "{{ capi_providers_values_url }}"
+    dest: "{{ rancher_dev_dir }}/providers-values.yaml"
+    mode: "0644"
+    force: true
+
+# The chart creates capa-system itself; Helm adopts it only with this ownership metadata.
+- name: Create the CAPA namespace for the chart to adopt
+  kubernetes.core.k8s:
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: capa-system
+        labels:
+          app.kubernetes.io/managed-by: Helm
+        annotations:
+          meta.helm.sh/release-name: "{{ capi_providers_release }}"
+          meta.helm.sh/release-namespace: "{{ capi_providers_release_namespace }}"
+  when: capi_providers_aws_enabled | bool
+
+- name: Store the AWS credentials for CAPA
+  kubernetes.core.k8s:
+    definition:
+      apiVersion: v1
+      kind: Secret
+      type: Opaque
+      metadata:
+        name: "{{ item.name }}"
+        namespace: capa-system
+      data: "{{ item.data }}"
+  loop:
+    - name: capa-credentials
+      data:
+        AWS_B64ENCODED_CREDENTIALS: "{{ capi_providers_aws_ini | b64encode | b64encode }}"
+    - name: cluster-identity
+      data:
+        AccessKeyID: "{{ capa_aws_access_key_id | b64encode }}"
+        SecretAccessKey: "{{ capa_aws_secret_access_key | b64encode }}"
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    capi_providers_aws_ini: |
+      [default]
+      aws_access_key_id = {{ capa_aws_access_key_id }}
+      aws_secret_access_key = {{ capa_aws_secret_access_key }}
+      region = {{ capa_aws_region }}
+  no_log: true
+  when: capi_providers_aws_enabled | bool
+
+# Namespaces are the chart defaults: Helm cannot adopt the existing cattle-turtles-system
+# that rancher-fleet-clusters' values name for migrated installs.
+- name: Install or upgrade the CAPI providers
+  kubernetes.core.helm:
+    name: "{{ capi_providers_release }}"
+    chart_ref: "{{ rancher_dev_dir }}/turtles-{{ capi_providers_turtles_version }}/charts/rancher-turtles-providers"
+    release_namespace: "{{ capi_providers_release_namespace }}"
+    binary_path: "{{ helm_bin }}"
+    values_files: ["{{ rancher_dev_dir }}/providers-values.yaml"]
+    release_values:
+      providers:
+        bootstrapRKE2:
+          namespace: rke2-bootstrap-system
+        controlplaneRKE2:
+          namespace: rke2-control-plane-system
+        infrastructureDocker:
+          enabled: "{{ install_docker | bool }}"
+          namespace: capd-system
+        # Turtles copies variables into configSecret, so the chart's empty
+        # AWS_B64ENCODED_CREDENTIALS default would blank the stored credentials.
+        infrastructureAWS:
+          enabled: "{{ capi_providers_aws_enabled | bool }}"
+          variables:
+            AWS_B64ENCODED_CREDENTIALS: null
+            AWS_REGION: "{{ capa_aws_region }}"
+
+- name: Wait for every CAPI provider to be ready
+  kubernetes.core.k8s_info:
+    api_version: "{{ capi_providers_api }}"
+    kind: CAPIProvider
+  register: capi_providers_status
+  until: >-
+    capi_providers_status.resources | default([]) | length > 1
+    and capi_providers_status.resources | map(attribute='status.phase', default='')
+    | reject('equalto', 'Ready') | list | length == 0
+  retries: 40
+  delay: 15
