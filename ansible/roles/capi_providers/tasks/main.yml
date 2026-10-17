@@ -123,3 +123,18 @@
     | reject('equalto', 'Ready') | list | length == 0
   retries: 40
   delay: 15
+
+# Turtles reports Ready before the controller Deployments finish rolling out.
+- name: Wait for the provider controllers to roll out
+  ansible.builtin.shell: |
+    set -euo pipefail
+    for ns in {{ capi_providers_status.resources | map(attribute='metadata.namespace') | unique | join(' ') }}; do
+      for deployment in $({{ kubectl_bin }} get deployment -n "$ns" -o name); do
+        {{ kubectl_bin }} rollout status -n "$ns" "$deployment" --timeout=600s
+      done
+    done
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: "{{ rke2_kubeconfig }}"
+  changed_when: false
