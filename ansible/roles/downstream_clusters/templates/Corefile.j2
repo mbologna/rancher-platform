@@ -1,0 +1,25 @@
+.:53 {
+    errors
+    health {
+       lameduck 5s
+    }
+    ready
+    # Reach Rancher on the host's private address, as /etc/hosts does on the host itself.
+    hosts {
+       {{ ansible_facts.default_ipv4.address }} {{ rancher_hostname }}
+       fallthrough
+    }
+    kubernetes cluster.local in-addr.arpa ip6.arpa {
+       pods insecure
+       fallthrough in-addr.arpa ip6.arpa
+       ttl 30
+    }
+    prometheus :9153
+    forward . /etc/resolv.conf {
+       max_concurrent 1000
+    }
+    cache 30
+    loop
+    reload
+    loadbalance
+}

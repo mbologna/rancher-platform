@@ -1,0 +1,4 @@
+---
+downstream_clusters_label: rancher-platform.mbologna.github.io/downstream
+downstream_clusters_kubeconfig: "{{ rancher_dev_dir }}/kind-{{ downstream_clusters_name }}.yaml"
+downstream_clusters_name_pattern: ^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$

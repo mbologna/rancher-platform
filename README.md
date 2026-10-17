@@ -88,6 +88,7 @@ Settings and pinned versions live in
 | `selinux_mode` | `permissive` | `""` leaves SELinux alone. |
 | `install_docker` | `true` | Installs Docker on the host. |
 | `capd_enabled` | `install_docker` | Installs the Docker CAPI provider and its `kind` network; set `true` if Docker is already installed. |
+| `downstream_clusters` | `[]` | Names of kind clusters to create on the host and import into Rancher. |
 | `rke2_etcd_snapshot_schedule` | `0 */12 * * *` | Cron schedule for etcd snapshots; `rke2_etcd_snapshot_retention` keeps 5. |
 | `rke2_etcd_s3_bucket` | | Also uploads snapshots to this S3 bucket. |
 
@@ -130,6 +131,26 @@ or 10250 (kind, for example), `deploy` stops before installing anything and poin
 On AWS, run `tofu destroy` in `terraform/` and delete `~/.kube/rancher-platform.yaml`. On your
 own host, run `./manage.sh uninstall-rancher`, then `/usr/local/bin/rke2-uninstall.sh` on the
 host to remove RKE2.
+
+## Downstream clusters (optional)
+
+Rancher can manage kind clusters that run on the same host, which is enough to try cluster
+management, Fleet and apps without more machines. List their names in `downstream_clusters`:
+
+```bash
+./manage.sh deploy -e '{"downstream_clusters": ["dev", "staging"]}'
+```
+
+For each name, `deploy` creates a kind cluster `rp-<name>` (Kubernetes
+`kind_node_version`), registers it in Rancher as an imported cluster and waits until Rancher
+reports it ready. Each cluster uses about 1 GB of RAM and needs Docker. Removing a name and
+deploying again deletes that cluster from Rancher and kind; clusters that `deploy` did not create
+are left alone. Inside the clusters, CoreDNS resolves `rancher_hostname` to the host's private
+address, so agents reach Rancher without leaving the host.
+
+Get a kubeconfig for a downstream cluster from the Rancher UI, or on the host from
+`/root/.rancher-dev/kind-<name>.yaml`. `uninstall-rancher` leaves the kind clusters running, and
+they reconnect after the next `deploy`. `reset` deletes them, and `deploy` then creates them again.
 
 ## Cluster API (optional)
 

@@ -29,6 +29,8 @@
       - "SSH:         ssh {{ ansible_user | default('root') }}@{{ ansible_host }}  (kubectl works out of the box)"
       - "Helpers:     cluster-status, rancher-logs, port-forward-rancher, uninstall-rancher (sudo -i)"
       - "{{ summary_fleet_done if fleet_gitrepo_enabled | bool else summary_fleet_next }}"
+      - "Downstream:  {{ downstream_clusters | join(', ') if downstream_clusters else summary_downstream_none }}"
+    summary_downstream_none: none (set downstream_clusters to import kind clusters)
     summary_fleet_done: "Fleet:       rancher-fleet-clusters registered as a GitRepo in fleet-local"
     summary_fleet_next: >-
       Next:        register https://github.com/mbologna/rancher-fleet-clusters
