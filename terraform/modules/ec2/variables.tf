@@ -27,7 +27,7 @@ variable "root_volume_size_gb" {
 
 # Provide ONE of: public_key_path (creates key pair) or key_name (existing key pair)
 variable "public_key_path" {
-  description = "Path to a local SSH public key file. Leave empty to use key_name instead."
+  description = "Path to a local SSH public key file (already expanded). Leave empty to use key_name instead."
   type        = string
   default     = ""
 }
@@ -36,6 +36,18 @@ variable "key_name" {
   description = "Name of an existing EC2 key pair. Used when public_key_path is empty."
   type        = string
   default     = ""
+}
+
+variable "ami_name_filter" {
+  description = "AMI name pattern"
+  type        = string
+  default     = "openSUSE-Leap-16-0-v*-hvm-ssd-x86_64"
+}
+
+variable "ami_owner" {
+  description = "AWS account that publishes the AMI"
+  type        = string
+  default     = "013907871322" # SUSE
 }
 
 variable "tags" {

@@ -41,25 +41,28 @@ variable "subnet_cidr" {
 }
 
 variable "allowed_ssh_cidrs" {
-  description = "CIDRs allowed SSH (port 22). Should be your operator IP only."
+  description = "CIDRs allowed to SSH (22). Use your operator IP, e.g. [\"203.0.113.10/32\"]."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+
+  validation {
+    condition     = length(var.allowed_ssh_cidrs) > 0 && !contains(var.allowed_ssh_cidrs, "0.0.0.0/0")
+    error_message = "Set allowed_ssh_cidrs to your own IP range; 0.0.0.0/0 is not allowed."
+  }
 }
 
 variable "allowed_admin_cidrs" {
-  description = "CIDRs allowed Rancher web UI (ports 80/443/6443). Should be your IP only."
+  description = "CIDRs allowed to reach the Kubernetes API (6443) for kubectl. Use your operator IP. (80/443 are open to all.)"
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+
+  validation {
+    condition     = length(var.allowed_admin_cidrs) > 0 && !contains(var.allowed_admin_cidrs, "0.0.0.0/0")
+    error_message = "Set allowed_admin_cidrs to your own IP range; 0.0.0.0/0 is not allowed."
+  }
 }
 
 variable "allowed_cluster_cidrs" {
-  description = <<-EOT
-    CIDRs for downstream CAPI cluster nodes (registration + webhook callbacks).
-    Typically the VPC CIDR(s) where your downstream clusters will run.
-    These are granted access to: 80, 443, 6443, 9345, 30000-32767, 8472/udp.
-  EOT
+  description = "CIDRs of downstream CAPI cluster nodes, typically their VPC CIDRs. See the security-groups module for the ports they get."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
 }
 
 variable "instance_type" {
@@ -87,8 +90,32 @@ variable "key_name" {
   default     = ""
 }
 
+variable "private_key_path" {
+  description = "Private SSH key Ansible uses. Defaults to public_key_path without .pub (or ~/.ssh/id_rsa)."
+  type        = string
+  default     = ""
+}
+
 variable "ansible_user" {
   description = "SSH user for Ansible to connect as"
   type        = string
-  default     = "ec2-user" # SLES default on AWS
+  default     = "ec2-user" # openSUSE/SLES default on AWS
+}
+
+variable "rancher_hostname" {
+  description = "FQDN for Rancher. Defaults to rancher.<elastic-ip>.nip.io."
+  type        = string
+  default     = ""
+}
+
+variable "ami_name_filter" {
+  description = "AMI name pattern for the management node (openSUSE Leap 16.0 by default)"
+  type        = string
+  default     = "openSUSE-Leap-16-0-v*-hvm-ssd-x86_64"
+}
+
+variable "ami_owner" {
+  description = "AWS account that publishes the AMI (SUSE)"
+  type        = string
+  default     = "013907871322"
 }

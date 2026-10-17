@@ -1,11 +1,11 @@
-# Data source: latest openSUSE Leap 15.6 AMI published by SUSE (free, no subscription required)
+# Latest matching AMI (openSUSE Leap 16.0 by default: free, no subscription required)
 data "aws_ami" "opensuse" {
   most_recent = true
-  owners      = ["679593333241"] # SUSE's official AWS account
+  owners      = [var.ami_owner]
 
   filter {
     name   = "name"
-    values = ["openSUSE-Leap-15.6-HVM-x86_64*"]
+    values = [var.ami_name_filter]
   }
 
   filter {

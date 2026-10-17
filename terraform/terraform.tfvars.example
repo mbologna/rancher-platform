@@ -1,38 +1,35 @@
-# Copy this file to terraform.tfvars and fill in your values.
-# terraform.tfvars is gitignored — never commit real values.
+# Copy to terraform.tfvars (gitignored) and fill in your values.
 
-aws_region          = "eu-west-1"
-project_name        = "rancher-platform"
-environment         = "dev"
+aws_region   = "eu-west-1"
+project_name = "rancher-platform"
+environment  = "dev"
 
-# EC2
+# EC2 (openSUSE Leap 16.0 by default; override ami_name_filter/ami_owner for another image)
 instance_type       = "t3.xlarge"
 root_volume_size_gb = 100
 
-# SSH — point to your local public key
-public_key_path     = "~/.ssh/id_rsa.pub"
-ansible_user        = "ec2-user"
+# SSH: public key uploaded as an EC2 key pair; private key defaults to the same path without .pub
+public_key_path = "~/.ssh/id_rsa.pub"
+# private_key_path = "~/.ssh/id_rsa"
+ansible_user = "ec2-user"
 
-# Network
-vpc_cidr            = "10.0.0.0/16"
-subnet_cidr         = "10.0.1.0/24"
+# Rancher FQDN; defaults to rancher.<elastic-ip>.nip.io
+# rancher_hostname = "rancher.example.com"
 
-# ── Access control ────────────────────────────────────────────────────────────
+# Network (or reuse a VPC with existing_vpc_id = "vpc-...")
+vpc_cidr    = "10.0.0.0/16"
+subnet_cidr = "10.0.1.0/24"
+
+# ── Access control (required) ────────────────────────────────────────────────
 # Find your public IP: curl -s https://checkip.amazonaws.com
+# 80/443 (Rancher UI/API) are always open to all.
 
-# SSH access — your operator machine only
-allowed_ssh_cidrs     = ["YOUR_IP/32"]
+# SSH (22): your operator machine only; 0.0.0.0/0 is rejected
+allowed_ssh_cidrs = ["YOUR_IP/32"]
 
-# Rancher web UI (80/443) and kubectl (6443) — your operator machine only
-allowed_admin_cidrs   = ["YOUR_IP/32"]
+# kubectl (6443): your operator machine only; 0.0.0.0/0 is rejected
+allowed_admin_cidrs = ["YOUR_IP/32"]
 
-# Downstream CAPI cluster nodes — needed for:
-#   - Rancher cluster-agent registration (443)
-#   - CAPI reconciliation callbacks (443, 6443)
-#   - RKE2 supervisor (9345)
-#   - Fleet/CAPI webhooks via NodePorts (30000-32767)
-# Set to the VPC CIDR(s) of the AWS region(s) where downstream clusters run.
-# If clusters are in the same region, you can use the same VPC CIDR as above.
-# Example: two downstream regions
-# allowed_cluster_cidrs = ["10.1.0.0/16", "10.2.0.0/16"]
+# Downstream CAPI cluster nodes: 6443, 9345, 30000-32767, 8472/udp.
+# Set to the VPC CIDR(s) where downstream clusters run, e.g. ["10.1.0.0/16", "10.2.0.0/16"].
 allowed_cluster_cidrs = ["DOWNSTREAM_VPC_CIDR/16"]

@@ -1,25 +1,3 @@
-terraform {
-  required_version = ">= 1.16.5"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 6.67"
-    }
-    local = {
-      source  = "hashicorp/local"
-      version = "~> 2.9"
-    }
-  }
-
-  # Uncomment to store state in S3 (recommended for teams)
-  # backend "s3" {
-  #   bucket = "my-terraform-state"
-  #   key    = "rancher-platform/terraform.tfstate"
-  #   region = "eu-west-1"
-  # }
-}
-
 provider "aws" {
   region = var.aws_region
 
@@ -35,8 +13,13 @@ locals {
     ManagedBy   = "terraform"
   }
 
-  # Derive AZ from region if not explicitly set
-  availability_zone = var.availability_zone != "" ? var.availability_zone : "${var.aws_region}a"
+  availability_zone = coalesce(var.availability_zone, "${var.aws_region}a")
+  rancher_hostname  = coalesce(var.rancher_hostname, "rancher.${module.ec2.public_ip}.nip.io")
+  public_key_path   = var.public_key_path != "" ? pathexpand(var.public_key_path) : ""
+  private_key_path = coalesce(
+    var.private_key_path,
+    var.public_key_path != "" ? trimsuffix(var.public_key_path, ".pub") : "~/.ssh/id_rsa",
+  )
 }
 
 module "vpc" {
@@ -47,7 +30,6 @@ module "vpc" {
   vpc_cidr          = var.vpc_cidr
   subnet_cidr       = var.subnet_cidr
   availability_zone = local.availability_zone
-  tags              = local.common_tags
 }
 
 module "security_groups" {
@@ -58,7 +40,6 @@ module "security_groups" {
   allowed_ssh_cidrs     = var.allowed_ssh_cidrs
   allowed_admin_cidrs   = var.allowed_admin_cidrs
   allowed_cluster_cidrs = var.allowed_cluster_cidrs
-  tags                  = local.common_tags
 }
 
 module "ec2" {
@@ -69,9 +50,10 @@ module "ec2" {
   security_group_id   = module.security_groups.security_group_id
   instance_type       = var.instance_type
   root_volume_size_gb = var.root_volume_size_gb
-  public_key_path     = var.public_key_path
+  public_key_path     = local.public_key_path
   key_name            = var.key_name
-  tags                = local.common_tags
+  ami_name_filter     = var.ami_name_filter
+  ami_owner           = var.ami_owner
 }
 
 # Write a ready-to-use Ansible inventory into terraform/generated/ — never overwrites the
@@ -80,8 +62,9 @@ resource "local_file" "ansible_inventory" {
   filename        = "${path.module}/generated/hosts.yml"
   file_permission = "0600"
   content = templatefile("${path.module}/templates/hosts.yml.tftpl", {
-    public_ip    = module.ec2.public_ip
-    ansible_user = var.ansible_user
-    ssh_key_path = var.public_key_path != "" ? replace(var.public_key_path, ".pub", "") : "~/.ssh/id_rsa"
+    public_ip        = module.ec2.public_ip
+    ansible_user     = var.ansible_user
+    private_key_path = local.private_key_path
+    rancher_hostname = local.rancher_hostname
   })
 }
