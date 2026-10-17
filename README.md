@@ -149,4 +149,9 @@ answers. It uses no cloud resources.
 The [Security workflow](.github/workflows/security.yml) scans the Terraform with trivy and the
 workflows with zizmor, and reports findings under Security > Code scanning.
 
+Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/) because
+squash merges turn them into commit messages. The [Release workflow](.github/workflows/release.yml)
+keeps a release pull request open with the next version and `CHANGELOG.md`; merging it tags the
+release.
+
 Licensed under the [Apache License 2.0](LICENSE).
