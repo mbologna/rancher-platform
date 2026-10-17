@@ -1,0 +1,5 @@
+---
+capi_providers_api: turtles-capi.cattle.io/v1alpha1
+capi_providers_release: rancher-turtles-providers
+capi_providers_release_namespace: cattle-turtles-system
+capi_providers_aws_enabled: "{{ capa_aws_access_key_id | default('') | length > 0 }}"

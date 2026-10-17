@@ -51,6 +51,15 @@
     enabled: true
   when: install_docker | bool
 
+# CAPD attaches load balancer and node containers to the "kind" network.
+- name: Create the Docker network for CAPD
+  ansible.builtin.shell: >-
+    docker network inspect kind >/dev/null 2>&1
+    || { docker network create kind >/dev/null && echo created; }
+  register: base_kind_network
+  changed_when: "'created' in base_kind_network.stdout"
+  when: install_docker | bool
+
 - name: Create a Python virtualenv for the Kubernetes modules
   ansible.builtin.pip:
     name: [kubernetes, PyYAML]
