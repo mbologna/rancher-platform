@@ -44,7 +44,9 @@ step 2. The kubeconfig is at `~/.kube/rancher-platform.yaml`.
 
 On AWS the hostname defaults to `rancher.<elastic-ip>.sslip.io`, and `tofu apply` writes the
 inventory that `manage.sh` uses. The security group admits SSH and the Kubernetes API only from
-the CIDRs you set, and ports 80 and 443 from anywhere.
+the CIDRs you set, and ports 80 and 443 from anywhere. The root volume is encrypted with the
+account's default EBS key; hosts created before this setting existed are replaced on the next
+`tofu apply`.
 
 ## Commands
 
