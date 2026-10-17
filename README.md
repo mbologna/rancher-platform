@@ -149,8 +149,8 @@ are left alone. Inside the clusters, CoreDNS resolves `rancher_hostname` to the 
 address, so agents reach Rancher without leaving the host.
 
 Get a kubeconfig for a downstream cluster from the Rancher UI, or on the host from
-`/root/.rancher-dev/kind-<name>.yaml`. `uninstall-rancher` leaves the kind clusters running; the
-next `deploy` registers them again. `reset` deletes them.
+`/root/.rancher-dev/kind-<name>.yaml`. `uninstall-rancher` leaves the kind clusters running, and
+they reconnect after the next `deploy`. `reset` deletes them, and `deploy` then creates them again.
 
 ## Cluster API (optional)
 

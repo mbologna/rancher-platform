@@ -81,10 +81,11 @@
        | reject('in', downstream_clusters | map('regex_replace', '^', 'rp-') | list) | list }}
   changed_when: true
 
-- name: Remove kubeconfigs of deleted clusters
+- name: Remove the kubeconfigs and import manifests of deleted clusters
   ansible.builtin.file:
-    path: "{{ rancher_dev_dir }}/kind-{{ item | regex_replace('^rp-', '') }}.yaml"
+    path: "{{ rancher_dev_dir }}/{{ item[1] }}-{{ item[0] | regex_replace('^rp-', '') }}.yaml"
     state: absent
   loop: >-
     {{ (downstream_clusters_kind_list.stdout_lines | default([])) | select('match', '^rp-')
-       | reject('in', downstream_clusters | map('regex_replace', '^', 'rp-') | list) | list }}
+       | reject('in', downstream_clusters | map('regex_replace', '^', 'rp-') | list) | list
+       | product(['kind', 'import']) | list }}
