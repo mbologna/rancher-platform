@@ -1,0 +1,8 @@
+---
+profile: production
+project_dir: ansible
+exclude_paths:
+  - .github/
+  - terraform/
+  - renovate.json
+mock_roles: []

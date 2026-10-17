@@ -4,7 +4,7 @@
 ansible_collections/
 
 # Secrets — never commit credentials
-ansible/vars/secrets.yml
+ansible/group_vars/all/secrets.yml
 
 # Python virtual environments
 /venv/
@@ -27,11 +27,12 @@ ansible/inventory/hosts.yml
 
 # Terraform
 terraform/.terraform/
+# Not committed: Terraform and OpenTofu record different registry addresses
 terraform/.terraform.lock.hcl
 terraform/terraform.tfvars
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/*.tfplan
 terraform/crash.log
-# Auto-generated inventory from Terraform (use -i to point manage.sh at it)
+# Auto-generated inventory from Terraform (picked up by ansible/manage.sh)
 terraform/generated/
