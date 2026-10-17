@@ -2,7 +2,7 @@
 # Central configuration. Every version pin below is tracked by Renovate (see renovate.json).
 
 # renovate: datasource=github-releases depName=rancher/rke2
-rke2_version: "v1.34.6+rke2r3"
+rke2_version: "v1.36.5+rke2r1"
 # Ingress controller RKE2 deploys: traefik or ingress-nginx (retired upstream in March 2026).
 # Changing it on an existing host restarts RKE2 and replaces the controller.
 rke2_ingress_controller: traefik
