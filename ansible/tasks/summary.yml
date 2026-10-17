@@ -5,6 +5,13 @@
     dest: "{{ local_kubeconfig }}"
     flat: true
 
+- name: Keep the local kubeconfig private
+  ansible.builtin.file:
+    path: "{{ local_kubeconfig }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+
 - name: Show cluster status
   ansible.builtin.command: "{{ bin_dir }}/cluster-status"
   register: summary_status
