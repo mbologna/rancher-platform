@@ -102,7 +102,7 @@
         controlplaneRKE2:
           namespace: rke2-control-plane-system
         infrastructureDocker:
-          enabled: "{{ install_docker | bool }}"
+          enabled: "{{ capd_enabled | bool }}"
           namespace: capd-system
         # Turtles copies variables into configSecret, so the chart's empty
         # AWS_B64ENCODED_CREDENTIALS default would blank the stored credentials.

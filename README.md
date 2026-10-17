@@ -87,6 +87,7 @@ Settings and pinned versions live in
 | `rke2_ingress_controller` | `traefik` | `traefik` or `ingress-nginx`. |
 | `selinux_mode` | `permissive` | `""` leaves SELinux alone. |
 | `install_docker` | `true` | Installs Docker on the host. |
+| `capd_enabled` | `install_docker` | Installs the Docker CAPI provider and its `kind` network; set `true` if Docker is already installed. |
 | `rke2_etcd_snapshot_schedule` | `0 */12 * * *` | Cron schedule for etcd snapshots; `rke2_etcd_snapshot_retention` keeps 5. |
 | `rke2_etcd_s3_bucket` | | Also uploads snapshots to this S3 bucket. |
 
