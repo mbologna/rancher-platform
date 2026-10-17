@@ -5,6 +5,19 @@
   changed_when: false
   failed_when: false
 
+# Kubernetes upgrades one minor version at a time and does not support downgrades.
+- name: Refuse to skip or roll back a Kubernetes minor version
+  ansible.builtin.assert:
+    that: (rke2_target_minor | int) - (rke2_installed_minor | int) in [0, 1]
+    fail_msg: >-
+      RKE2 is at 1.{{ rke2_installed_minor }}; {{ rke2_version }} would move to 1.{{ rke2_target_minor }}.
+      Kubernetes cannot downgrade or skip a minor; upgrade through each minor with -e rke2_version=<v1.N.x release>.
+    quiet: true
+  vars:
+    rke2_installed_minor: "{{ rke2_installed.stdout | regex_search('v1\\.(\\d+)\\.', '\\1') | first | int }}"
+    rke2_target_minor: "{{ rke2_version | regex_search('v1\\.(\\d+)\\.', '\\1') | first | int }}"
+  when: rke2_installed.rc == 0
+
 - name: Install RKE2 {{ rke2_version }}
   when: rke2_installed.rc != 0 or rke2_version not in rke2_installed.stdout
   block:

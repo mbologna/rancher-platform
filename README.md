@@ -83,7 +83,8 @@ To encrypt the password file, run `ansible-vault encrypt group_vars/all/secrets.
 `manage.sh` then asks for the vault password.
 
 Renovate proposes version updates. RKE2, cert-manager and Rancher updates are never merged
-automatically.
+automatically. `deploy` refuses to skip a Kubernetes minor version on an existing host: to go
+from RKE2 1.34 to 1.36, deploy once with `-e rke2_version=<a v1.35.x release>` first.
 
 ## What deploy changes on the host
 
@@ -113,8 +114,6 @@ pre-commit run --all-files
 ```
 
 The hooks run yamllint, shellcheck, ansible-lint, actionlint, `tofu fmt` and tflint; the
-[Lint workflow](.github/workflows/lint.yml) runs them on every pull request. The
-[Deploy test workflow](.github/workflows/deploy-test.yml) creates a host, deploys twice and
-destroys it. It needs an AWS role ARN in the `AWS_ROLE_ARN` secret.
+[Lint workflow](.github/workflows/lint.yml) runs them on every pull request.
 
 Licensed under the [Apache License 2.0](LICENSE).
