@@ -14,7 +14,6 @@
 
 - name: Resolve the Rancher hostname inside rp-{{ downstream_clusters_name }}
   kubernetes.core.k8s:
-    kubeconfig: "{{ downstream_clusters_kubeconfig }}"
     api_version: v1
     kind: ConfigMap
     namespace: kube-system
@@ -22,6 +21,9 @@
     resource_definition:
       data:
         Corefile: "{{ lookup('ansible.builtin.template', 'Corefile.j2') }}"
+  # Via the environment: a kubeconfig parameter is looked up on the controller under local connection.
+  environment:
+    K8S_AUTH_KUBECONFIG: "{{ downstream_clusters_kubeconfig }}"
   register: downstream_clusters_coredns
 
 - name: Restart CoreDNS in rp-{{ downstream_clusters_name }}
@@ -100,9 +102,10 @@
       no_log: true
 
     - name: Apply the registration manifest to rp-{{ downstream_clusters_name }}
-      kubernetes.core.k8s:
-        kubeconfig: "{{ downstream_clusters_kubeconfig }}"
-        src: "{{ rancher_dev_dir }}/import-{{ downstream_clusters_name }}.yaml"
+      ansible.builtin.command: >-
+        {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }}
+        apply -f {{ rancher_dev_dir }}/import-{{ downstream_clusters_name }}.yaml
+      changed_when: true
 
     - name: Wait for Rancher to report ready on {{ downstream_clusters_name }}
       kubernetes.core.k8s_info:
