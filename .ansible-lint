@@ -6,3 +6,6 @@ exclude_paths:
   - terraform/
   - renovate.json
 mock_roles: []
+# Lint the entry point as a playbook; otherwise a task list saved there passes.
+kinds:
+  - playbook: "**/ansible/main.yml"
