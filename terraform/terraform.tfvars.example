@@ -13,7 +13,7 @@ public_key_path = "~/.ssh/id_rsa.pub"
 # private_key_path = "~/.ssh/id_rsa"
 ansible_user = "ec2-user"
 
-# Rancher FQDN; defaults to rancher.<elastic-ip>.nip.io
+# Rancher FQDN; defaults to rancher.<elastic-ip>.sslip.io
 # rancher_hostname = "rancher.example.com"
 
 # Network (or reuse a VPC with existing_vpc_id = "vpc-...")

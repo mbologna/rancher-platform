@@ -33,6 +33,12 @@
         regexp: ^SELINUX=
         line: SELINUX={{ selinux_mode }}
 
+- name: Refresh the apt cache (fresh cloud images ship without one)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_facts.os_family == 'Debian'
+
 - name: Install base packages
   ansible.builtin.package:
     name: "{{ base_packages + (base_docker_package[ansible_facts.os_family] if install_docker | bool else []) }}"

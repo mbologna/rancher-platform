@@ -103,7 +103,7 @@ variable "ansible_user" {
 }
 
 variable "rancher_hostname" {
-  description = "FQDN for Rancher. Defaults to rancher.<elastic-ip>.nip.io."
+  description = "FQDN for Rancher. Defaults to rancher.<elastic-ip>.sslip.io."
   type        = string
   default     = ""
 }

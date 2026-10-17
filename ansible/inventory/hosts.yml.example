@@ -4,6 +4,6 @@ servers:
   hosts:
     my-host:
       ansible_host: 1.2.3.4                  # IP or hostname of the target machine
-      rancher_hostname: rancher.example.com  # FQDN for the Rancher URL (e.g. rancher.1.2.3.4.nip.io)
+      rancher_hostname: rancher.example.com  # FQDN for the Rancher URL (e.g. rancher.1.2.3.4.sslip.io)
       ansible_user: root
       ansible_ssh_private_key_file: ~/.ssh/id_rsa

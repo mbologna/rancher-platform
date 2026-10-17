@@ -2,3 +2,12 @@
 rancher_ingress_daemonset:
   ingress-nginx: rke2-ingress-nginx-controller
   traefik: rke2-traefik
+
+rancher_ingress_class:
+  ingress-nginx: nginx
+  traefik: traefik
+
+# Substring of the certificate issuer for each ingress.tls.source.
+rancher_tls_issuer_cn:
+  rancher: dynamiclistener
+  letsEncrypt: Let's Encrypt

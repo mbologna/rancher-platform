@@ -14,7 +14,7 @@ locals {
   }
 
   availability_zone = coalesce(var.availability_zone, "${var.aws_region}a")
-  rancher_hostname  = coalesce(var.rancher_hostname, "rancher.${module.ec2.public_ip}.nip.io")
+  rancher_hostname  = coalesce(var.rancher_hostname, "rancher.${module.ec2.public_ip}.sslip.io")
   public_key_path   = var.public_key_path != "" ? pathexpand(var.public_key_path) : ""
   private_key_path = coalesce(
     var.private_key_path,
