@@ -55,6 +55,7 @@ Run these from `ansible/`. Extra arguments go to `ansible-playbook`.
 | `./manage.sh install` | Installs the pinned Ansible collections. |
 | `./manage.sh deploy` | Installs or upgrades everything to the pinned versions. |
 | `./manage.sh status` | Shows node, pod and Rancher status. |
+| `./manage.sh kubeconfig` | Fetches the kubeconfig to `~/.kube/rancher-platform.yaml`. |
 | `./manage.sh uninstall-rancher` | Removes Rancher and cert-manager; RKE2 stays. |
 | `./manage.sh reset` | **Deletes all cluster and Docker data** on the host, then deploys. |
 
