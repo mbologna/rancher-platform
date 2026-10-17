@@ -39,6 +39,9 @@ helm_diff_version: "v3.15.15"
 
 # Docker on the host is required by the CAPD (Docker) infrastructure provider.
 install_docker: true
+# Install the CAPD provider and its "kind" network. Set true with install_docker: false when
+# the host already runs Docker.
+capd_enabled: "{{ install_docker }}"
 
 # Leap 16 / SLE 16 enforce SELinux by default; RKE2's tarball install does not ship the
 # rke2-selinux policy. Set to "" to leave the host's SELinux mode untouched.

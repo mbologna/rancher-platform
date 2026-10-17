@@ -70,7 +70,7 @@
     executable: /bin/bash
   register: base_kind_network
   changed_when: "'changed' in base_kind_network.stdout"
-  when: install_docker | bool
+  when: capd_enabled | bool
 
 - name: Create a Python virtualenv for the Kubernetes modules
   ansible.builtin.pip:
