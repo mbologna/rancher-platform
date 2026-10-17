@@ -39,6 +39,22 @@
         "helm/helm"
       ],
       "allowedVersions": "<4"
+    },
+    {
+      "description": "Rancher 2.15.x requires Kubernetes < 1.37; raise this with the Rancher pin",
+      "matchDepNames": [
+        "rancher/rke2"
+      ],
+      "allowedVersions": "/^v1\\.(2[0-9]|3[0-6])\\./"
+    },
+    {
+      "description": "Platform components need a live deploy before merging; lint CI cannot catch compatibility breaks",
+      "matchDepNames": [
+        "rancher/rke2",
+        "rancher",
+        "cert-manager/cert-manager"
+      ],
+      "automerge": false
     }
   ]
 }
