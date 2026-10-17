@@ -1,0 +1,95 @@
+---
+- name: Create the kind cluster rp-{{ downstream_clusters_name }}
+  ansible.builtin.command: >-
+    {{ bin_dir }}/kind create cluster --name rp-{{ downstream_clusters_name }}
+    --image kindest/node:{{ kind_node_version }} --kubeconfig {{ downstream_clusters_kubeconfig }}
+  when: ('rp-' ~ downstream_clusters_name) not in (downstream_clusters_kind_list.stdout_lines | default([]))
+  changed_when: true
+
+- name: Write the kubeconfig of rp-{{ downstream_clusters_name }}
+  ansible.builtin.command: >-
+    {{ bin_dir }}/kind export kubeconfig --name rp-{{ downstream_clusters_name }}
+    --kubeconfig {{ downstream_clusters_kubeconfig }}
+  changed_when: false
+
+- name: Resolve the Rancher hostname inside rp-{{ downstream_clusters_name }}
+  kubernetes.core.k8s:
+    kubeconfig: "{{ downstream_clusters_kubeconfig }}"
+    api_version: v1
+    kind: ConfigMap
+    namespace: kube-system
+    name: coredns
+    resource_definition:
+      data:
+        Corefile: "{{ lookup('ansible.builtin.template', 'Corefile.j2') }}"
+  register: downstream_clusters_coredns
+
+- name: Restart CoreDNS in rp-{{ downstream_clusters_name }}
+  ansible.builtin.command: >-
+    {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }} -n kube-system
+    rollout restart deployment coredns
+  when: downstream_clusters_coredns is changed # noqa: no-handler -- per-cluster, inside a loop
+  changed_when: true
+
+- name: Register the Rancher cluster {{ downstream_clusters_name }}
+  kubernetes.core.k8s:
+    definition:
+      apiVersion: provisioning.cattle.io/v1
+      kind: Cluster
+      metadata:
+        name: "{{ downstream_clusters_name }}"
+        namespace: fleet-default
+        labels: "{{ {downstream_clusters_label: 'true'} }}"
+      spec: {}
+
+- name: Wait for the registration manifest of {{ downstream_clusters_name }}
+  kubernetes.core.k8s_info:
+    api_version: provisioning.cattle.io/v1
+    kind: Cluster
+    namespace: fleet-default
+    name: "{{ downstream_clusters_name }}"
+  register: downstream_clusters_cluster
+  until: downstream_clusters_cluster.resources[0].status.clusterName | default('') | length > 0
+  retries: 30
+  delay: 5
+
+- name: Import the cluster {{ downstream_clusters_name }}
+  when: not (downstream_clusters_cluster.resources[0].status.ready | default(false))
+  block:
+    - name: Read the registration token of {{ downstream_clusters_name }}
+      kubernetes.core.k8s_info:
+        api_version: management.cattle.io/v3
+        kind: ClusterRegistrationToken
+        namespace: "{{ downstream_clusters_cluster.resources[0].status.clusterName }}"
+      register: downstream_clusters_token
+      until: >-
+        downstream_clusters_token.resources | map(attribute='status.manifestUrl', default='')
+        | select | list | length > 0
+      retries: 30
+      delay: 5
+
+    # The URL points at this host (see /etc/hosts), which may serve a self-signed or staging certificate.
+    - name: Download the registration manifest of {{ downstream_clusters_name }}
+      ansible.builtin.get_url:
+        url: >-
+          {{ downstream_clusters_token.resources | map(attribute='status.manifestUrl', default='') | select | first }}
+        dest: "{{ rancher_dev_dir }}/import-{{ downstream_clusters_name }}.yaml"
+        mode: "0600"
+        force: true
+        validate_certs: false
+
+    - name: Apply the registration manifest to rp-{{ downstream_clusters_name }}
+      kubernetes.core.k8s:
+        kubeconfig: "{{ downstream_clusters_kubeconfig }}"
+        src: "{{ rancher_dev_dir }}/import-{{ downstream_clusters_name }}.yaml"
+
+    - name: Wait for Rancher to report ready on {{ downstream_clusters_name }}
+      kubernetes.core.k8s_info:
+        api_version: provisioning.cattle.io/v1
+        kind: Cluster
+        namespace: fleet-default
+        name: "{{ downstream_clusters_name }}"
+      register: downstream_clusters_ready
+      until: downstream_clusters_ready.resources[0].status.ready | default(false)
+      retries: 60
+      delay: 10

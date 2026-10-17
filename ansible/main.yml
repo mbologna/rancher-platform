@@ -87,6 +87,10 @@
       vars:
         ansible_python_interpreter: "{{ k8s_python }}"
       tags: [rancher]
+    - role: downstream_clusters
+      vars:
+        ansible_python_interpreter: "{{ k8s_python }}"
+      tags: [downstream]
     - role: capi_providers
       when: capi_providers_enabled | bool
       vars:

@@ -1,6 +1,6 @@
 ---
-# Deploys RKE2, cert-manager and Rancher on the runner itself, then checks that a second deploy
-# changes nothing and that Rancher answers. Nothing leaves the runner.
+# Deploys RKE2, cert-manager, Rancher and one imported kind cluster on the runner itself, then
+# checks that a second deploy changes nothing and that Rancher answers. Nothing leaves the runner.
 name: E2E
 
 on:
@@ -51,6 +51,7 @@ jobs:
                 ansible_user: ${USER}
                 rancher_hostname: rancher.${ip}.sslip.io
                 install_docker: false
+                downstream_clusters: [e2e]
           INVENTORY
           password=$(openssl rand -hex 16)
           echo "::add-mask::${password}"
@@ -69,10 +70,14 @@ jobs:
         run: |
           test "$(curl -fsSk "https://${RANCHER_HOSTNAME}/ping")" = pong
           /usr/local/bin/kubectl --kubeconfig ~/.kube/rancher-platform.yaml get nodes
+          /usr/local/bin/kubectl --kubeconfig ~/.kube/rancher-platform.yaml \
+            wait clusters.provisioning.cattle.io/e2e -n fleet-default \
+            --for=jsonpath='{.status.ready}'=true --timeout=60s
 
       - name: Show cluster state
         if: failure()
         run: |
           sudo /usr/local/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get pods -A || true
           sudo journalctl -u rke2-server --no-pager -n 100 || true
+          sudo /usr/local/bin/kubectl --kubeconfig /root/.rancher-dev/kind-e2e.yaml get pods -A || true
           df -h /

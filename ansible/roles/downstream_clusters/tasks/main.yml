@@ -1,0 +1,90 @@
+---
+# kind clusters on this host, imported into Rancher. Clusters this role creates carry the
+# rp- prefix in kind and the downstream_clusters_label in Rancher; prune touches nothing else.
+- name: Check the downstream cluster names
+  ansible.builtin.assert:
+    that:
+      - downstream_clusters is sequence and downstream_clusters is not string
+      - downstream_clusters | reject('match', downstream_clusters_name_pattern) | list | length == 0
+      - "'local' not in downstream_clusters"
+    fail_msg: >-
+      downstream_clusters must be a list of lowercase DNS labels of up to 30 characters, other than
+      "local"; got {{ downstream_clusters }}.
+
+- name: Check that Docker is running
+  ansible.builtin.command: docker version
+  changed_when: false
+  when: downstream_clusters | length > 0
+  register: downstream_clusters_docker
+  failed_when: false
+
+- name: Require Docker for downstream clusters
+  ansible.builtin.assert:
+    that: downstream_clusters_docker.rc == 0
+    fail_msg: kind needs Docker. Set install_docker to true or install Docker on the host.
+  when: downstream_clusters | length > 0
+
+- name: Install kind {{ kind_version }}
+  ansible.builtin.get_url:
+    url: "{{ downstream_clusters_kind_url }}"
+    checksum: "sha256:{{ downstream_clusters_kind_url }}.sha256sum"
+    dest: "{{ bin_dir }}/kind"
+    mode: "0755"
+  vars:
+    downstream_clusters_kind_url: >-
+      https://github.com/kubernetes-sigs/kind/releases/download/{{ kind_version }}/kind-linux-{{
+      'arm64' if ansible_facts.architecture == 'aarch64' else 'amd64' }}
+  when: downstream_clusters | length > 0
+
+- name: Check for kind
+  ansible.builtin.stat:
+    path: "{{ bin_dir }}/kind"
+  register: downstream_clusters_kind_bin
+
+- name: List kind clusters
+  ansible.builtin.command: "{{ bin_dir }}/kind get clusters"
+  register: downstream_clusters_kind_list
+  changed_when: false
+  when: downstream_clusters_kind_bin.stat.exists
+
+- name: Import the clusters
+  ansible.builtin.include_tasks: cluster.yml
+  loop: "{{ downstream_clusters }}"
+  loop_control:
+    loop_var: downstream_clusters_name
+
+- name: Find imported clusters that are no longer listed
+  kubernetes.core.k8s_info:
+    api_version: provisioning.cattle.io/v1
+    kind: Cluster
+    namespace: fleet-default
+    label_selectors: ["{{ downstream_clusters_label }}=true"]
+  register: downstream_clusters_rancher_clusters
+
+- name: Remove unlisted clusters from Rancher
+  kubernetes.core.k8s:
+    api_version: provisioning.cattle.io/v1
+    kind: Cluster
+    namespace: fleet-default
+    name: "{{ item }}"
+    state: absent
+    wait: true
+    wait_timeout: 600
+  loop: >-
+    {{ downstream_clusters_rancher_clusters.resources | map(attribute='metadata.name')
+       | reject('in', downstream_clusters) | list }}
+
+- name: Delete unlisted kind clusters
+  ansible.builtin.command: "{{ bin_dir }}/kind delete cluster --name {{ item }}"
+  loop: >-
+    {{ (downstream_clusters_kind_list.stdout_lines | default([])) | select('match', '^rp-')
+       | reject('in', downstream_clusters | map('regex_replace', '^', 'rp-') | list) | list }}
+  changed_when: true
+
+- name: Remove kubeconfigs of deleted clusters
+  ansible.builtin.file:
+    path: "{{ rancher_dev_dir }}/kind-{{ item | regex_replace('^rp-', '') }}.yaml"
+    state: absent
+  loop: >-
+    {{ (downstream_clusters_kind_list.stdout_lines | default([])) | select('match', '^rp-')
+       | reject('in', downstream_clusters | map('regex_replace', '^', 'rp-') | list) | list }}
