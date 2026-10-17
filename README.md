@@ -2,24 +2,20 @@
 
 > Use Rancher as a **platform** for provisioning and managing Kubernetes clusters through code.
 
----
+This repo installs a single-node **Rancher management cluster** (RKE2 + cert-manager + Rancher),
+the platform on which [Cluster API (CAPI)](https://cluster-api.sigs.k8s.io/) provisions
+downstream clusters through Rancher Turtles.
 
-## What is this?
+It is for:
 
-This repo gets you a running **Rancher management cluster**, the platform on which cluster
-provisioning via [Cluster API (CAPI)](https://cluster-api.sigs.k8s.io/) happens.
+- **Rancher Engineering**: a configured Rancher instance in minutes, to try CAPI providers,
+  reproduce bugs or test upgrades.
+- **Solution Architects**: a Rancher demo environment from scratch, or Rancher on any Linux
+  machine for an end-to-end IaC demo.
 
-It is designed for:
-
-- **Rancher Engineering**: spin up a fully configured Rancher instance in minutes to experiment
-  with CAPI providers, reproduce bugs, or test upgrades.
-- **Solution Architects**: bootstrap a Rancher demo environment from scratch, or install Rancher
-  on any Linux machine for an end-to-end IaC demo.
-
-> **Scope**: this repo installs Rancher and bootstraps the CAPI platform (Turtles).
-> CAPI providers, ClusterClasses, and cluster definitions live in
-> **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)**. Register
-> that repo in Fleet after this one is done.
+> **Scope**: this repo installs Rancher, which bundles Turtles. CAPI providers, ClusterClasses
+> and cluster definitions live in
+> **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)**.
 
 ---
 
@@ -34,76 +30,107 @@ Do you have a machine to install Rancher on?
 └─ YES ──► Step 2: install Rancher with Ansible
 ```
 
-Any machine works: cloud VM, bare metal, or any Linux host where you have root or SSH access.
+Any Linux host works (cloud VM or bare metal) if you can SSH in as root or as a sudoer.
 
 ---
 
 ## Step 1: Get a machine *(skip if you already have one)*
 
-**Option A: any machine you control**
+**Option A: any machine you control.** Skip to Step 2.
 
-Skip to Step 2. Just make sure you have SSH access and the user can run commands as root.
-
-**Option B: provision one on AWS with Terraform / OpenTofu**
+**Option B: an EC2 instance on AWS, with OpenTofu or Terraform**
 
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# edit terraform.tfvars: set region, SSH key name, restrict allowed_ssh_cidrs
+# edit terraform.tfvars: region, SSH key, and the required allowed_*_cidrs
 tofu init && tofu apply   # or: terraform init && terraform apply
 ```
 
-Provisions: EC2 instance, VPC, Elastic IP, Security Group.
-The Ansible inventory is written automatically to `terraform/generated/hosts.yml`.
+This creates a VPC (or reuses one via `existing_vpc_id`), a security group, an openSUSE Leap 16.0
+instance and an Elastic IP. `allowed_ssh_cidrs` and `allowed_admin_cidrs` are required and reject
+`0.0.0.0/0`. Rancher gets the hostname `rancher.<elastic-ip>.nip.io` unless you set
+`rancher_hostname`.
+
+The Ansible inventory is written to `terraform/generated/hosts.yml`. `manage.sh` uses it
+automatically when `ansible/inventory/hosts.yml` does not exist.
 
 ---
 
 ## Step 2: Install Rancher
 
-Supported OS:
-
-| OS family | Tested on | Notes |
+| OS | Tested on | Notes |
 |---|---|---|
-| **SUSE** | openSUSE Leap 15.6 | Default via Terraform (official SUSE AMI). SLE 15.x also supported (`python3` module registered via `suseconnect` automatically). |
-| **Debian** | Ubuntu 22.04 / 24.04 | Bring your own machine. |
+| openSUSE Leap 16.0 | Terraform default | SELinux is set to permissive (see `selinux_mode`). |
+| SLES / openSUSE Leap 15.x | | Python 3.11 is installed automatically; on SLES the Python 3 module is enabled with `suseconnect`. |
+| Ubuntu 22.04 / 24.04 | | Bring your own machine. |
 
-**2a. Point Ansible at your host**
-
-If you used Terraform, the inventory was already written. Otherwise copy the example and fill in your details:
+**2a. Point Ansible at your host** *(skip if you used Terraform)*
 
 ```bash
 cp ansible/inventory/hosts.yml.example ansible/inventory/hosts.yml
-# edit hosts.yml: set ansible_host and rancher_hostname
+# edit hosts.yml: ansible_host, ansible_user and rancher_hostname
 ```
 
-> `ansible/inventory/hosts.yml` is gitignored and will never be committed.
-
-**2b. Configure the Rancher password**
+**2b. Set the Rancher admin password** (12 characters or more)
 
 ```bash
 cd ansible
-cp vars/secrets.yml.example vars/secrets.yml
-# edit secrets.yml: set rancher_bootstrap_password
+cp group_vars/all/secrets.yml.example group_vars/all/secrets.yml
+# edit secrets.yml; optionally: ansible-vault encrypt group_vars/all/secrets.yml
 ```
+
+Both `hosts.yml` and `secrets.yml` are gitignored.
 
 **2c. Run the playbook**
 
 ```bash
-./manage.sh install                                         # install Ansible collections (once)
-./manage.sh deploy                                          # uses ansible/inventory/hosts.yml
-./manage.sh deploy -i ../terraform/generated/hosts.yml      # or use the Terraform inventory
+./manage.sh install   # install the pinned Ansible collections (once)
+./manage.sh deploy    # install or update everything; safe to re-run
 ```
 
-When the playbook finishes you get:
+| Command | Effect |
+|---|---|
+| `install` | Installs the collections in `requirements.yml`. |
+| `deploy` | Installs or upgrades RKE2, Helm, cert-manager and Rancher to the pinned versions. Idempotent. |
+| `reset` | **Destructive.** Removes RKE2, k3s, kind and k3d, prunes all Docker data, then deploys from scratch. |
+| `status` | Runs `cluster-status` on every host. |
+| `uninstall-rancher` | Removes Rancher and cert-manager; RKE2 stays. |
 
-- Rancher running at `https://<host>`
-- **Kubeconfig fetched to `~/.kube/rancher-platform.yaml`** on your local machine
-- `kubectl` working over SSH: `ssh ec2-user@<host>` → `kubectl get nodes`
-- Rancher Turtles v0.26 installed and Cluster API bootstrapped (CoreProvider ready)
+Extra arguments go to Ansible, e.g. `./manage.sh deploy -i other.yml -e fleet_gitrepo_enabled=true`.
 
-**Next**: register [rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters) in Fleet
-to deploy CAPI providers, ClusterClasses, and example clusters. See that repo's README for the
-one-command registration.
+When the playbook finishes:
+
+- Rancher answers at `https://<rancher_hostname>` (user `admin`).
+- The kubeconfig is fetched to `~/.kube/rancher-platform.yaml` on your machine.
+- `kubectl` works for the SSH user on the host.
+- Turtles (bundled with Rancher v2.14) is running and manages the CAPI core provider.
+
+**Next**: register [rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters) in
+Fleet to install CAPI providers, ClusterClasses and example clusters. Either follow that repo's
+README or let the playbook apply its `gitrepo.yaml`:
+
+```bash
+./manage.sh deploy -e fleet_gitrepo_enabled=true
+```
+
+---
+
+## Configuration
+
+Settings live in [`ansible/group_vars/all/config.yml`](ansible/group_vars/all/config.yml):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `rke2_version`, `cert_manager_version`, `rancher_version`, `helm_version`, `helm_diff_version` | pinned | Component versions; Renovate updates them. |
+| `rke2_ingress_controller` | `ingress-nginx` | `ingress-nginx` or `traefik`. |
+| `install_docker` | `true` | Docker on the host, needed by the CAPD (Docker) provider. |
+| `selinux_mode` | `permissive` | Applied when SELinux is enabled; `""` leaves it alone. |
+| `fleet_gitrepo_enabled` | `false` | Register rancher-fleet-clusters in Fleet. |
+| `reset` | `false` | Set by `./manage.sh reset`. |
+
+CAPI provider versions (CAPRKE2, CAPA, CAPD, CAPM3) are pinned in
+[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters#version-matrix).
 
 ---
 
@@ -111,18 +138,18 @@ one-command registration.
 
 ### SUSE Multi-Linux Manager (MLM)
 
-If the target machine is already registered as a managed node in
-[SUSE Multi-Linux Manager](https://www.suse.com/products/multi-linux-manager/), point Ansible
-at it directly. Step 2 is identical. The result is Rancher installed and configured on a
-customer-managed machine, ready for a live CAPI demo.
+A node managed by [SUSE Multi-Linux Manager](https://www.suse.com/products/multi-linux-manager/)
+needs no extra setup: add it to the inventory and run Step 2. `deploy` does not wipe existing
+workloads; only `reset` does.
 
 ```yaml
-# ansible/inventory/hosts.yml  (copy from hosts.yml.example — gitignored)
+# ansible/inventory/hosts.yml
 servers:
   hosts:
     mlm-managed-host:
       ansible_host: <mlm-node-ip>
       ansible_user: root
+      rancher_hostname: rancher.<mlm-node-ip>.nip.io
 ```
 
 ---
@@ -132,50 +159,50 @@ servers:
 ```
 rancher-platform/
 ├── ansible/
-│   ├── manage.sh                    # deploy / install / destroy / status
-│   ├── main.yml                     # top-level playbook
-│   ├── inventory/
-│   │   ├── hosts.yml          # gitignored — copy from hosts.yml.example
-│   │   └── hosts.yml.example  # template (no real hostnames)
-│   ├── vars/
-│   │   ├── config.yml               # version pins and settings
-│   │   └── secrets.yml.example      # credential template (never committed)
+│   ├── manage.sh                  # install / deploy / reset / status / uninstall-rancher
+│   ├── main.yml                   # playbook: Python bootstrap + preflight, then roles
+│   ├── requirements.yml           # pinned collections
+│   ├── inventory/hosts.yml.example
+│   ├── group_vars/all/
+│   │   ├── config.yml             # versions, paths, toggles
+│   │   └── secrets.yml.example
+│   ├── tasks/summary.yml
 │   └── roles/
-│       ├── system_reset/            # wipe previous RKE2/k3s/Docker state
-│       ├── common/                  # Docker, sysctl tuning
-│       ├── cluster_tools/           # Helm
-│       ├── rke2/                    # RKE2 single-node install + kubeconfig
-│       ├── cluster_provisioning/    # cert-manager
-│       ├── rancher_manager/         # Rancher Helm chart + API token
-│       ├── rancher_turtles/         # ClusterctlConfig for custom provider URLs (Turtles v0.26 bundled in Rancher v2.14+)
-│       └── development_tools/       # helper scripts (cluster-status, rancher-logs, …)
+│       ├── system_reset/          # opt-in wipe of RKE2/k3s/kind/k3d/Docker state
+│       ├── base/                  # firewall, SELinux, Docker, Python venv, sysctl, /etc/hosts
+│       ├── helm/                  # Helm + helm-diff
+│       ├── rke2/                  # RKE2 server + kubeconfigs
+│       ├── cert_manager/
+│       ├── rancher/               # Rancher chart, waits for the API and Turtles
+│       ├── fleet_gitrepo/         # optional rancher-fleet-clusters registration
+│       └── dev_tools/             # cluster-status, rancher-logs, port-forward-rancher, uninstall-rancher
 └── terraform/
-    ├── main.tf
-    ├── variables.tf / outputs.tf
-    ├── terraform.tfvars.example     # copy → terraform.tfvars (gitignored)
+    ├── main.tf / versions.tf / variables.tf / outputs.tf
+    ├── terraform.tfvars.example
+    ├── templates/hosts.yml.tftpl
     └── modules/
-        ├── vpc/                     # VPC, IGW, public subnet, route table
-        ├── ec2/                     # openSUSE Leap 15.6, key pair, Elastic IP
-        └── security-groups/         # ports 22/80/443/6443/9345/30000-32767/8472udp
+        ├── vpc/                   # VPC, IGW, public subnet, route table
+        ├── ec2/                   # Leap 16.0 instance, key pair, Elastic IP
+        └── security-groups/       # 22, 80, 443, 6443, 9345, 30000-32767, 8472/udp
 ```
 
 ---
 
-## Version pins (`ansible/vars/config.yml`)
+## Development
 
-| Component       | Version        |
-|-----------------|----------------|
-| RKE2            | v1.34.6+rke2r3 |
-| cert-manager    | v1.20.1        |
-| Rancher         | v2.14+ (latest channel, ships Turtles v0.26 + CAPI v1.12.x) |
-| Turtles         | v0.26 (bundled with Rancher v2.14, auto-manages CoreProvider) |
+```bash
+pre-commit install
+pre-commit run --all-files
+```
 
-CAPI provider versions (CAPRKE2, CAPA, CAPD, CAPM3) are pinned in
-**[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters#version-matrix)**.
+The hooks run yamllint, shellcheck, ansible-lint (production profile), `tofu fmt` and tflint.
+The [Lint workflow](.github/workflows/lint.yml) runs the same hooks plus `tofu validate`.
 
 ---
 
 ## Related
 
 **[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters)**: CAPI providers,
-ClusterClasses, and example clusters, deployed automatically by Fleet after this repo runs.
+ClusterClasses and example clusters, deployed by Fleet.
+
+Licensed under the [Apache License 2.0](LICENSE).
