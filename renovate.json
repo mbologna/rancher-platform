@@ -49,11 +49,15 @@
       "allowedVersions": "/^v1\\.(2[0-9]|3[0-6])\\./"
     },
     {
-      "description": "Platform components need a live deploy before merging; lint CI cannot catch compatibility breaks. The empty suffix drops the shared preset's [automerge] title tag, which is set by update type",
+      "description": "Minor and major platform updates need a human decision on compatibility and upgrade order. Patches automerge after the E2E workflow deploys them on the runner. The empty suffix drops the shared preset's [automerge] title tag, which is set by update type",
       "matchDepNames": [
         "rancher/rke2",
         "rancher",
         "cert-manager/cert-manager"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "major"
       ],
       "automerge": false,
       "commitMessageSuffix": ""
