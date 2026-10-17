@@ -1,0 +1,19 @@
+---
+# Lima VM for a local rancher-platform deploy. Create it with ./local/lima.sh up.
+base: template:opensuse-leap-16
+cpus: 4
+memory: 12GiB
+disk: 60GiB
+vmType: vz
+# vzNAT gives the VM an address the Mac can reach, so Rancher answers on rancher.<ip>.sslip.io
+# as it does on AWS.
+networks:
+  - vzNAT: true
+mounts: []
+containerd:
+  system: false
+  user: false
+# RKE2 serves 80, 443 and 6443 on the VM address; don't also forward them to localhost.
+portForwards:
+  - guestPortRange: [1, 65535]
+    ignore: true
