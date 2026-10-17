@@ -7,6 +7,17 @@ rke2_version: "v1.36.5+rke2r1"
 # Changing it on an existing host restarts RKE2 and replaces the controller.
 rke2_ingress_controller: traefik
 
+# etcd snapshots: RKE2 writes them to /var/lib/rancher/rke2/server/db/snapshots on the host.
+rke2_etcd_snapshot_schedule: "0 */12 * * *"
+rke2_etcd_snapshot_retention: 5
+# Set a bucket to also upload snapshots to S3 (or an S3-compatible endpoint). Keys go in
+# secrets.yml (rke2_etcd_s3_access_key, rke2_etcd_s3_secret_key); without them RKE2 uses the
+# host's AWS credentials, such as an EC2 instance profile.
+rke2_etcd_s3_bucket: ""
+rke2_etcd_s3_region: us-east-1
+rke2_etcd_s3_folder: ""
+rke2_etcd_s3_endpoint: s3.amazonaws.com
+
 # renovate: datasource=github-releases depName=cert-manager/cert-manager
 cert_manager_version: "v1.21.2"
 
