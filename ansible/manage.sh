@@ -38,11 +38,25 @@ set_inventory() {
     fi
 }
 
+# Prompts for the vault password when secrets.yml is encrypted and no password source is configured.
+VAULT=()
+set_vault() {
+    local arg
+    [[ -n "${ANSIBLE_VAULT_PASSWORD_FILE:-}" || -n "${ANSIBLE_VAULT_IDENTITY_LIST:-}" ]] && return
+    for arg in "$@"; do
+        case "${arg}" in --vault-* | --ask-vault-pass | -J) return ;; esac
+    done
+    if [[ "$(head -c 14 group_vars/all/secrets.yml 2>/dev/null)" == "\$ANSIBLE_VAULT" ]]; then
+        VAULT=(--ask-vault-pass)
+    fi
+}
+
 run_on_hosts() {
     local script=$1
     shift
     set_inventory "$@"
-    ansible servers ${INV[@]+"${INV[@]}"} --become -m ansible.builtin.command -a "/usr/local/bin/${script}" "$@"
+    set_vault "$@"
+    ansible servers ${INV[@]+"${INV[@]}"} ${VAULT[@]+"${VAULT[@]}"} --become -m ansible.builtin.command -a "/usr/local/bin/${script}" "$@"
 }
 
 COMMAND=${1:-}
@@ -54,8 +68,9 @@ case "${COMMAND}" in
         ;;
     deploy | reset)
         set_inventory "$@"
+        set_vault "$@"
         [[ "${COMMAND}" == reset ]] && set -- -e reset=true "$@"
-        ansible-playbook main.yml ${INV[@]+"${INV[@]}"} "$@"
+        ansible-playbook main.yml ${INV[@]+"${INV[@]}"} ${VAULT[@]+"${VAULT[@]}"} "$@"
         ;;
     status)
         run_on_hosts cluster-status "$@"
