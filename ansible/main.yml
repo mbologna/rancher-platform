@@ -11,8 +11,15 @@
       changed_when: false
       failed_when: false
 
-    - name: Install Python 3.11 on SLE/Leap 15
+    - name: Check for python3.11
+      ansible.builtin.raw: test -x /usr/bin/python3.11
+      register: python311_ok
+      changed_when: false
+      failed_when: false
       when: python3_ok.rc != 0
+
+    - name: Install Python 3.11 on SLE/Leap 15
+      when: python3_ok.rc != 0 and python311_ok.rc != 0
       block:
         - name: Enable the SLE Python 3 module (SLES only; no-op elsewhere)
           ansible.builtin.raw: >-
@@ -24,12 +31,17 @@
           ansible.builtin.raw: zypper --non-interactive install python311
           changed_when: true
 
-        - name: Use Python 3.11 for the rest of the run
-          ansible.builtin.set_fact:
-            ansible_python_interpreter: /usr/bin/python3.11
+    # Kept out of ansible_python_interpreter: a set_fact there would outrank the per-role venv below.
+    - name: Record the system Python for the deploy play
+      ansible.builtin.set_fact:
+        base_python: >-
+          {{ ansible_python_interpreter if ansible_python_interpreter is defined
+             else '/usr/bin/python3' if python3_ok.rc == 0 else '/usr/bin/python3.11' }}
 
     - name: Gather facts
       ansible.builtin.setup:
+      vars:
+        ansible_python_interpreter: "{{ base_python }}"
 
     - name: Validate required settings
       ansible.builtin.assert:
@@ -47,6 +59,8 @@
   hosts: servers
   gather_facts: false
   become: true
+  vars:
+    ansible_python_interpreter: "{{ base_python }}"
   environment:
     PATH: "{{ bin_dir }}:/usr/sbin:/usr/bin:/sbin:/bin"
     KUBECONFIG: "{{ rke2_kubeconfig }}"

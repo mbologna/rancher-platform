@@ -37,7 +37,7 @@
     url: https://{{ rancher_hostname }}/ping
     validate_certs: false
   register: rancher_ping
-  until: rancher_ping.status == 200
+  until: rancher_ping.status | default(0) == 200
   retries: 30
   delay: 10
 
@@ -54,6 +54,6 @@
       status: "True"
     wait_timeout: 60
   register: rancher_turtles
-  until: rancher_turtles.resources | length > 0
+  until: rancher_turtles.resources | default([]) | length > 0 # transient API errors return no resources
   retries: 20
   delay: 15
