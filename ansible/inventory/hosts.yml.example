@@ -1,11 +1,9 @@
 ---
+# Copy to hosts.yml (gitignored). SSH host-key options are set once in ansible.cfg.
 servers:
   hosts:
     my-host:
-      ansible_host: 1.2.3.4              # IP or hostname of your target machine
-      rancher_hostname: rancher.example.com  # FQDN used for the Rancher URL
+      ansible_host: 1.2.3.4                  # IP or hostname of the target machine
+      rancher_hostname: rancher.example.com  # FQDN for the Rancher URL (e.g. rancher.1.2.3.4.nip.io)
       ansible_user: root
       ansible_ssh_private_key_file: ~/.ssh/id_rsa
-      ansible_ssh_common_args: >-
-        -o StrictHostKeyChecking=no
-        -o UserKnownHostsFile=/dev/null

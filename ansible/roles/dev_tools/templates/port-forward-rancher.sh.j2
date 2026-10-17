@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Managed by Ansible (rancher-platform)
+set -euo pipefail
+export KUBECONFIG="${KUBECONFIG:-{{ rke2_kubeconfig }}}"
+PATH="{{ bin_dir }}:$PATH"
+
+echo "Rancher available at https://localhost:8443"
+exec kubectl -n cattle-system port-forward svc/rancher 8443:443

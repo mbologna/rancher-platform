@@ -1,0 +1,6 @@
+# Managed by Ansible (rancher-platform)
+write-kubeconfig-mode: "0600"
+ingress-controller: {{ rke2_ingress_controller }}
+tls-san:
+  - {{ rancher_hostname }}
+  - {{ ansible_host }}

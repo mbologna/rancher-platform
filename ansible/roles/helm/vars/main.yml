@@ -1,0 +1,4 @@
+---
+helm_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts.architecture] }}"
+helm_diff_current: >-
+  {{ helm_plugins.stdout is search('^diff\s+' ~ helm_diff_version | regex_replace('^v', '') ~ '\s', multiline=True) }}

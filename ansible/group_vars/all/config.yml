@@ -1,0 +1,47 @@
+---
+# Central configuration. Every version pin below is tracked by Renovate (see renovate.json).
+
+# renovate: datasource=github-releases depName=rancher/rke2
+rke2_version: "v1.34.6+rke2r3"
+# Ingress controller RKE2 deploys: ingress-nginx or traefik.
+rke2_ingress_controller: ingress-nginx
+
+# renovate: datasource=github-releases depName=cert-manager/cert-manager
+cert_manager_version: "v1.20.1"
+
+# Rancher v2.14+ bundles Turtles v0.26 (CAPI v1.12.x), so no separate Turtles install is needed.
+# renovate: datasource=helm depName=rancher registryUrl=https://releases.rancher.com/server-charts/latest
+rancher_version: "2.14.6"
+rancher_chart_repo: https://releases.rancher.com/server-charts/latest
+
+# renovate: datasource=github-releases depName=helm/helm
+helm_version: "v3.22.1"
+# renovate: datasource=github-releases depName=databus23/helm-diff
+helm_diff_version: "v3.15.15"
+
+# Docker on the host is required by the CAPD (Docker) infrastructure provider.
+install_docker: true
+
+# Leap 16 / SLE 16 enforce SELinux by default; RKE2's tarball install does not ship the
+# rke2-selinux policy. Set to "" to leave the host's SELinux mode untouched.
+selinux_mode: permissive
+
+# Wipe RKE2/k3s/kind/k3d/Docker state before deploying. Destructive; use `./manage.sh reset`.
+reset: false
+
+# Optionally register rancher-fleet-clusters as a Fleet GitRepo once Rancher is up.
+fleet_gitrepo_enabled: false
+fleet_gitrepo_manifest_url: https://raw.githubusercontent.com/mbologna/rancher-fleet-clusters/main/gitrepo.yaml
+
+# ── Paths (defined once, used everywhere) ────────────────────────────────────
+rancher_dev_dir: /root/.rancher-dev
+rke2_kubeconfig: /etc/rancher/rke2/rke2.yaml
+rke2_kubeconfig_external: "{{ rancher_dev_dir }}/rke2-kubeconfig-external.yaml"
+local_kubeconfig: ~/.kube/rancher-platform.yaml
+k8s_venv: /opt/rancher-platform/venv
+k8s_python: "{{ k8s_venv }}/bin/python"
+bin_dir: /usr/local/bin
+kubectl_bin: "{{ bin_dir }}/kubectl"
+helm_bin: "{{ bin_dir }}/helm"
+
+# Credentials live in secrets.yml (gitignored). Copy secrets.yml.example to get started.

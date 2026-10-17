@@ -1,0 +1,4 @@
+---
+rancher_ingress_daemonset:
+  ingress-nginx: rke2-ingress-nginx-controller
+  traefik: rke2-traefik

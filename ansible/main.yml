@@ -1,88 +1,84 @@
 ---
-- name: Bootstrap target hosts
+- name: Bootstrap Python on target hosts
   hosts: servers
   gather_facts: false
-  become: yes
-  vars:
-    # Use a generic interpreter for bootstrapping
-    ansible_python_interpreter: auto_silent
-
+  become: true
   tasks:
-    - name: Pre-flight Python 3.11 installation using raw commands
+    # ansible-core needs Python >= 3.8 on the target. SLE/Leap 15 ship 3.6, so install 3.11 there.
+    - name: Check for a usable python3
+      ansible.builtin.raw: python3 -c 'import sys; sys.exit(sys.version_info < (3, 8))'
+      register: python3_ok
+      changed_when: false
+      failed_when: false
+
+    - name: Install Python 3.11 on SLE/Leap 15
+      when: python3_ok.rc != 0
       block:
-        - name: Check for Python 3.11
-          raw: command -v python3.11
-          register: python311_exists
-          changed_when: false
-          failed_when: false
+        - name: Enable the SLE Python 3 module (SLES only; no-op elsewhere)
+          ansible.builtin.raw: >-
+            . /etc/os-release;
+            if [ "$ID" = sles ]; then suseconnect -p "sle-module-python3/${VERSION_ID}/$(uname -m)"; fi
+          changed_when: true
 
-        - name: Get OS release information
-          raw: cat /etc/os-release
-          register: os_release
-          changed_when: false
-          when: python311_exists.rc != 0
+        - name: Install python311
+          ansible.builtin.raw: zypper --non-interactive install python311
+          changed_when: true
 
-        - name: Register SLES Python3 module if needed
-          raw: suseconnect -p sle-module-python3/15.7/x86_64
-          when: python311_exists.rc != 0 and 'ID="sles"' in os_release.stdout
+        - name: Use Python 3.11 for the rest of the run
+          ansible.builtin.set_fact:
+            ansible_python_interpreter: /usr/bin/python3.11
 
-        - name: Install Python 3.11 on SUSE family
-          raw: zypper install -y python311
-          when: python311_exists.rc != 0 and 'ID_LIKE="suse"' in os_release.stdout
+    - name: Gather facts
+      ansible.builtin.setup:
 
-        - name: Install Python 3.11 on Debian family
-          raw: apt-get update && apt-get install -y python3.11
-          when: python311_exists.rc != 0 and 'ID_LIKE="debian"' in os_release.stdout
-
-    - name: Gather facts now that Python is available
-      ansible.builtin.setup: {}
+    - name: Validate required settings
+      ansible.builtin.assert:
+        that:
+          - rancher_hostname is defined
+          - rancher_bootstrap_password is defined
+          - rancher_bootstrap_password != 'CHANGE_ME'
+          - rancher_bootstrap_password | length >= 12
+        fail_msg: >-
+          Set rancher_hostname in the inventory and rancher_bootstrap_password (12+ characters) in
+          group_vars/all/secrets.yml (copy secrets.yml.example).
+        quiet: true
 
 - name: Deploy RKE2 + Rancher Manager
   hosts: servers
-  gather_facts: false # Facts are already gathered in the bootstrap play
-  become: yes
-
-  vars:
-    ansible_python_interpreter: /usr/bin/python3.11
-    kubeconfig_dir: "{{ ansible_facts['env']['HOME'] }}/.rancher-dev/kubeconfigs"
-    rke2_kubeconfig: "{{ ansible_facts['env']['HOME'] }}/.rancher-dev/kubeconfigs/rke2-kubeconfig.yaml"
-
+  gather_facts: false
+  become: true
   environment:
-    PATH: "/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-  pre_tasks:
-    - name: Load main configuration
-      include_vars: "vars/config.yml"
-
-    - name: Load secrets (credentials — never committed to git)
-      include_vars: "vars/secrets.yml"
+    PATH: "{{ bin_dir }}:/usr/sbin:/usr/bin:/sbin:/bin"
+    KUBECONFIG: "{{ rke2_kubeconfig }}"
+    K8S_AUTH_KUBECONFIG: "{{ rke2_kubeconfig }}"
 
   roles:
     - role: system_reset
-      tags: [reset, always]
-
-    - role: common
-      tags: [common, always]
-
-    - role: cluster_tools
-      tags: [tools]
-
+      when: reset | bool
+      tags: [reset]
+    - role: base
+      tags: [base]
+    - role: helm
+      tags: [helm]
     - role: rke2
-      tags: [rke2, provision]
-
-    - role: cluster_provisioning
-      tags: [provision]
-
-    - role: rancher_manager
+      tags: [rke2]
+    - role: cert_manager
+      vars:
+        ansible_python_interpreter: "{{ k8s_python }}"
+      tags: [cert_manager]
+    - role: rancher
+      vars:
+        ansible_python_interpreter: "{{ k8s_python }}"
       tags: [rancher]
-
-    - role: rancher_turtles
-      tags: [turtles, capi]
-
-    - role: development_tools
-      tags: [devtools, always]
+    - role: fleet_gitrepo
+      when: fleet_gitrepo_enabled | bool
+      vars:
+        ansible_python_interpreter: "{{ k8s_python }}"
+      tags: [fleet]
+    - role: dev_tools
+      tags: [dev_tools]
 
   post_tasks:
-    - name: Display environment summary
-      include_tasks: tasks/summary.yml
-      tags: [summary, always]
+    - name: Show summary
+      ansible.builtin.include_tasks: tasks/summary.yml
+      tags: [always]

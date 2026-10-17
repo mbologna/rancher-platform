@@ -1,0 +1,42 @@
+---
+- name: Check installed Helm version
+  ansible.builtin.command: "{{ helm_bin }} version --short"
+  register: helm_installed
+  changed_when: false
+  failed_when: false
+
+- name: Install Helm {{ helm_version }}
+  when: helm_installed.stdout.split('+')[0] != helm_version
+  block:
+    - name: Download and unpack Helm
+      ansible.builtin.unarchive:
+        src: https://get.helm.sh/helm-{{ helm_version }}-linux-{{ helm_arch }}.tar.gz
+        dest: /tmp
+        remote_src: true
+        include: ["linux-{{ helm_arch }}/helm"]
+
+    - name: Install the Helm binary
+      ansible.builtin.copy:
+        src: /tmp/linux-{{ helm_arch }}/helm
+        dest: "{{ helm_bin }}"
+        remote_src: true
+        mode: "0755"
+
+- name: List Helm plugins
+  ansible.builtin.command: "{{ helm_bin }} plugin list"
+  register: helm_plugins
+  changed_when: false
+
+- name: Remove outdated helm-diff
+  ansible.builtin.command: "{{ helm_bin }} plugin uninstall diff"
+  changed_when: true
+  when:
+    - helm_plugins.stdout is search('^diff\\s', multiline=True)
+    - not (helm_diff_current | bool)
+
+# helm-diff lets kubernetes.core.helm skip no-op upgrades
+- name: Install helm-diff {{ helm_diff_version }}
+  ansible.builtin.command: >-
+    {{ helm_bin }} plugin install https://github.com/databus23/helm-diff --version {{ helm_diff_version }}
+  changed_when: true
+  when: not (helm_diff_current | bool)

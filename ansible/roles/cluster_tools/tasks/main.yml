@@ -1,3 +1,0 @@
----
-- name: Install Helm
-  include_tasks: install_helm.yml

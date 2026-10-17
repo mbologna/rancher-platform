@@ -1,0 +1,16 @@
+---
+- name: Download the rancher-fleet-clusters GitRepo manifest
+  ansible.builtin.get_url:
+    url: "{{ fleet_gitrepo_manifest_url }}"
+    dest: "{{ rancher_dev_dir }}/fleet-gitrepo.yaml"
+    mode: "0644"
+    force: true
+
+- name: Register the GitRepo in Fleet
+  kubernetes.core.k8s:
+    src: "{{ rancher_dev_dir }}/fleet-gitrepo.yaml"
+    state: present
+  register: fleet_gitrepo_applied
+  until: fleet_gitrepo_applied is succeeded # the GitRepo CRD appears once Rancher has deployed Fleet
+  retries: 20
+  delay: 15

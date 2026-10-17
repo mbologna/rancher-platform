@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Managed by Ansible (rancher-platform)
+set -euo pipefail
+export KUBECONFIG="${KUBECONFIG:-{{ rke2_kubeconfig }}}"
+PATH="{{ bin_dir }}:$PATH"
+
+echo "--- Removing Rancher and cert-manager (RKE2 stays) ---"
+helm uninstall rancher -n cattle-system --wait || true
+helm uninstall cert-manager -n cert-manager --wait || true
+kubectl delete namespace cattle-system cert-manager --ignore-not-found
+echo "--- Done ---"

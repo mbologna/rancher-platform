@@ -1,67 +1,73 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TERRAFORM_INVENTORY="${SCRIPT_DIR}/../terraform/generated/hosts.yml"
+cd "${SCRIPT_DIR}"
 
-# --- Help/Usage ---
 usage() {
-    echo "Usage: $0 <command> [ansible-options]"
-    echo ""
-    echo "Commands:"
-    echo "  install    Install Ansible collections from requirements.yml"
-    echo "  deploy     Run the main deployment playbook."
-    echo "             Any extra arguments are passed to ansible-playbook."
-    echo "             Examples:"
-    echo "               ./manage.sh deploy                              # uses inventory/hosts.yml"
-    echo "               ./manage.sh deploy -i /path/to/custom-inv.yml  # any inventory"
-    echo "               ./manage.sh deploy -i ../terraform/generated/hosts.yml  # Terraform-provisioned AWS host"
-    echo "  destroy    Delete all clusters and cleanup kubeconfigs on all hosts."
-    echo "  status     Run cluster-status script on all hosts."
-    echo "  help       Show this help message."
-    echo ""
-    echo "Note: Ansible is a standalone building block. Terraform is one way to provision"
-    echo "a machine — but you can point this playbook at any host via -i or inventory/hosts.yml."
+    cat <<USAGE
+Usage: $0 <command> [ansible options]
+
+Commands:
+  install            Install the Ansible collections from requirements.yml
+  deploy             Install or update RKE2, cert-manager and Rancher (idempotent)
+  reset              Wipe RKE2/k3s/kind/k3d and all Docker data, then deploy from scratch
+  status             Run cluster-status on all hosts
+  uninstall-rancher  Remove Rancher and cert-manager (RKE2 stays)
+  help               Show this help
+
+Extra options are passed to Ansible, e.g.:
+  $0 deploy -i /path/to/inventory.yml
+  $0 deploy -e fleet_gitrepo_enabled=true
+
+Inventory: inventory/hosts.yml if present, else ../terraform/generated/hosts.yml.
+USAGE
 }
 
-# --- Main Logic ---
-COMMAND=$1
+# Sets INV: the Terraform-generated inventory, unless the user passes -i or has a hand-written one.
+# (Written for bash 3.2, the macOS default: no mapfile, guarded empty-array expansion.)
+INV=()
+set_inventory() {
+    local arg
+    for arg in "$@"; do
+        case "${arg}" in -i | --inventory | --inventory=* | -i*) return ;; esac
+    done
+    if [[ ! -f inventory/hosts.yml && -f "${TERRAFORM_INVENTORY}" ]]; then
+        INV=(-i "${TERRAFORM_INVENTORY}")
+    fi
+}
+
+run_on_hosts() {
+    local script=$1
+    shift
+    set_inventory "$@"
+    ansible servers ${INV[@]+"${INV[@]}"} --become -m ansible.builtin.command -a "/usr/local/bin/${script}" "$@"
+}
+
+COMMAND=${1:-}
 shift || true
 
-if [ -z "$COMMAND" ]; then
-    usage
-    exit 1
-fi
-
-case $COMMAND in
+case "${COMMAND}" in
     install)
-        echo ">>> Installing Ansible collections..."
-        cd "${SCRIPT_DIR}"
         ansible-galaxy collection install -r requirements.yml
-        echo ">>> Installation complete."
         ;;
-    deploy)
-        echo ">>> Running deployment playbook..."
-        cd "${SCRIPT_DIR}"
-        unset ANSIBLE_VAULT_PASSWORD_FILE
-        ansible-playbook main.yml "$@"
-        ;;
-    destroy)
-        echo ">>> Removing Rancher and cert-manager on all hosts..."
-        cd "${SCRIPT_DIR}"
-        ansible all -i inventory/hosts.yml -m shell -a "/usr/local/bin/cleanup-rancher" "$@"
+    deploy | reset)
+        set_inventory "$@"
+        [[ "${COMMAND}" == reset ]] && set -- -e reset=true "$@"
+        ansible-playbook main.yml ${INV[@]+"${INV[@]}"} "$@"
         ;;
     status)
-        echo ">>> Getting status from all hosts..."
-        cd "${SCRIPT_DIR}"
-        ansible all -i inventory/hosts.yml -m shell -a "/usr/local/bin/cluster-status" "$@"
+        run_on_hosts cluster-status "$@"
         ;;
-    help|--help|-h)
+    uninstall-rancher)
+        run_on_hosts uninstall-rancher "$@"
+        ;;
+    help | --help | -h)
         usage
         ;;
     *)
-        echo "Error: Unknown command '$COMMAND'"
-        usage
+        usage >&2
         exit 1
         ;;
 esac

@@ -1,59 +1,26 @@
 ---
-- name: Fetch external kubeconfig to local machine
-  fetch:
-    src: "{{ kubeconfig_dir }}/rke2-kubeconfig-external.yaml"
-    dest: "~/.kube/rancher-platform.yaml"
-    flat: yes
+- name: Fetch the external kubeconfig to this machine
+  ansible.builtin.fetch:
+    src: "{{ rke2_kubeconfig_external }}"
+    dest: "{{ local_kubeconfig }}"
+    flat: true
 
-- name: Generate final environment summary
-  set_fact:
-    summary_content: |
-      ===============================================================================
-      🚀 RANCHER MANAGER ON RKE2 — READY
-      ===============================================================================
+- name: Show cluster status
+  ansible.builtin.command: "{{ bin_dir }}/cluster-status"
+  register: summary_status
+  changed_when: false
 
-      🌐 ACCESS
-        Rancher UI:  https://{{ rancher_hostname }}
-        Username:    admin
-        Password:    {{ rancher_bootstrap_password }}
-
-      🔑 KUBECONFIG
-        Local file:  ~/.kube/rancher-platform.yaml  (fetched to your machine)
-        SSH access:  ssh ec2-user@{{ ansible_host }}  (kubectl works via ~/.kube/config)
-
-        Use locally:
-          export KUBECONFIG=~/.kube/rancher-platform.yaml
-          kubectl get nodes
-
-      🚢 NEXT: add CAPI providers + ClusterClasses
-        → https://github.com/mbologna/rancher-fleet-clusters
-        Fleet has already registered that repo as a GitRepo (fleet-local namespace).
-        Add or enable paths in the GitRepo to activate providers and ClusterClasses.
-
-      ===============================================================================
-
-- name: Create environment summary file on remote host
-  copy:
-    content: "{{ summary_content }}"
-    dest: "{{ ansible_facts['env']['HOME'] }}/.rancher-dev/rancher-dev-summary.txt"
-    mode: '0644'
-
-- name: Display environment summary
-  debug:
-    msg: "{{ summary_content.split('\n') }}"
-
-- name: Final status validation
-  block:
-    - name: Check RKE2 node status
-      shell: kubectl --kubeconfig="{{ rke2_kubeconfig }}" get nodes -o wide
-      register: node_status
-
-    - name: Check Rancher Manager status
-      shell: |
-        echo "=== Rancher Manager Status ==="
-        kubectl --kubeconfig="{{ rke2_kubeconfig }}" -n cattle-system get pods
-      register: rancher_status
-
-    - name: Display final status
-      debug:
-        msg: "{{ node_status.stdout_lines + rancher_status.stdout_lines }}"
+- name: Show summary
+  ansible.builtin.debug:
+    msg: "{{ summary_lines + [''] + summary_status.stdout_lines }}"
+  vars:
+    summary_lines:
+      - "Rancher UI:  https://{{ rancher_hostname }}  (admin / rancher_bootstrap_password from secrets.yml)"
+      - "Kubeconfig:  export KUBECONFIG={{ local_kubeconfig }}"
+      - "SSH:         ssh {{ ansible_user | default('root') }}@{{ ansible_host }}  (kubectl works out of the box)"
+      - "Helpers:     cluster-status, rancher-logs, port-forward-rancher, uninstall-rancher (as root)"
+      - "{{ summary_fleet_done if fleet_gitrepo_enabled | bool else summary_fleet_next }}"
+    summary_fleet_done: "Fleet:       rancher-fleet-clusters registered as a GitRepo in fleet-local"
+    summary_fleet_next: >-
+      Next:        register https://github.com/mbologna/rancher-fleet-clusters
+      (or redeploy with -e fleet_gitrepo_enabled=true)

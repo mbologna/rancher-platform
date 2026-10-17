@@ -1,0 +1,13 @@
+---
+base_packages: [curl, git, jq, "{{ 'python3-venv' if ansible_facts.os_family == 'Debian' else 'python3' }}"]
+
+base_docker_package:
+  Suse: [docker]
+  Debian: [docker.io]
+
+base_sysctl:
+  fs.inotify.max_user_watches: 1048576
+  fs.inotify.max_user_instances: 1024
+  vm.max_map_count: 262144
+  net.core.somaxconn: 65535
+  net.ipv4.ip_local_port_range: 1024 65000

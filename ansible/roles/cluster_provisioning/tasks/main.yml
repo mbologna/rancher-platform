@@ -1,3 +1,0 @@
----
-- name: Install cert-manager on the RKE2 cluster
-  include_tasks: install_cert_manager.yml
