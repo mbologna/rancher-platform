@@ -14,6 +14,7 @@ Commands:
   deploy             Install or update RKE2, cert-manager and Rancher (idempotent)
   reset              Wipe RKE2/k3s/kind/k3d and all Docker data, then deploy from scratch
   status             Run cluster-status on all hosts
+  kubeconfig         Fetch the kubeconfig to ~/.kube/rancher-platform.yaml
   uninstall-rancher  Remove Rancher and cert-manager (RKE2 stays)
   help               Show this help
 
@@ -51,12 +52,13 @@ set_vault() {
     fi
 }
 
-run_on_hosts() {
-    local script=$1
-    shift
+# run_module <module> <args> [ansible options]: runs one module on all servers as root.
+run_module() {
+    local module=$1 args=$2
+    shift 2
     set_inventory "$@"
     set_vault "$@"
-    ansible servers ${INV[@]+"${INV[@]}"} ${VAULT[@]+"${VAULT[@]}"} --become -m ansible.builtin.command -a "/usr/local/bin/${script}" "$@"
+    ansible servers ${INV[@]+"${INV[@]}"} ${VAULT[@]+"${VAULT[@]}"} --become -m "${module}" -a "${args}" "$@"
 }
 
 COMMAND=${1:-}
@@ -73,10 +75,14 @@ case "${COMMAND}" in
         ansible-playbook main.yml ${INV[@]+"${INV[@]}"} ${VAULT[@]+"${VAULT[@]}"} "$@"
         ;;
     status)
-        run_on_hosts cluster-status "$@"
+        run_module ansible.builtin.command /usr/local/bin/cluster-status "$@"
+        ;;
+    kubeconfig)
+        # shellcheck disable=SC2016 # Ansible expands the {{ }} variables from group_vars.
+        run_module ansible.builtin.fetch 'src={{ rke2_kubeconfig_external }} dest={{ local_kubeconfig }} flat=true' "$@"
         ;;
     uninstall-rancher)
-        run_on_hosts uninstall-rancher "$@"
+        run_module ansible.builtin.command /usr/local/bin/uninstall-rancher "$@"
         ;;
     help | --help | -h)
         usage
