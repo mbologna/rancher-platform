@@ -3,13 +3,14 @@
 
 # renovate: datasource=github-releases depName=rancher/rke2
 rke2_version: "v1.34.6+rke2r3"
-# Ingress controller RKE2 deploys: ingress-nginx or traefik.
-rke2_ingress_controller: ingress-nginx
+# Ingress controller RKE2 deploys: traefik or ingress-nginx (retired upstream in March 2026).
+# Changing it on an existing host restarts RKE2 and replaces the controller.
+rke2_ingress_controller: traefik
 
 # renovate: datasource=github-releases depName=cert-manager/cert-manager
 cert_manager_version: "v1.21.2"
 
-# Rancher v2.14+ bundles Turtles v0.26 (CAPI v1.12.x), so no separate Turtles install is needed.
+# Rancher installs Turtles itself (2.15.2: Turtles v0.27.2, core CAPI v1.13.3).
 # renovate: datasource=helm depName=rancher registryUrl=https://releases.rancher.com/server-charts/stable
 rancher_version: "2.15.2"
 rancher_chart_repo: https://releases.rancher.com/server-charts/stable
