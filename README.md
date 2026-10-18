@@ -21,11 +21,12 @@ You need a Linux host you can SSH into as root or as a user with passwordless su
 
 Then pick one:
 
-- **A host you have.** Copy the inventory and set the host's address and the name Rancher will
-  answer on. `rancher.<ip>.sslip.io` works without DNS.
+- **A host you have.** Copy the inventory and set the host's address. Rancher answers on that
+  name if it is a DNS name, or on `rancher.<ip>.sslip.io` if it is an IP address; set
+  `rancher_hostname` to use another name.
 
   ```bash
-  cp ansible/inventory/hosts.yml.example ansible/inventory/hosts.yml   # ansible_host, rancher_hostname
+  cp ansible/inventory/hosts.yml.example ansible/inventory/hosts.yml   # ansible_host
   ```
 
 - **A new host on AWS.** `terraform/` creates a `t3.xlarge` openSUSE Leap 16.0 instance with a
@@ -141,6 +142,7 @@ Settings and pinned versions live in
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `rancher_hostname` | `ansible_host` or `rancher.<ip>.sslip.io` | Name Rancher answers on. Changing it on a running host moves Rancher, the kubeconfig and the downstream agents to the new name. |
 | `rancher_tls_source` | `rancher` | `rancher` (self-signed) or `letsEncrypt`; the latter needs `rancher_letsencrypt_email`, public DNS and port 80 open to the internet. |
 | `downstream_clusters` | `[]` | kind clusters to create and import. |
 | `rke2_ingress_controller` | `traefik` | `traefik` or `ingress-nginx`. |

@@ -72,8 +72,8 @@
   ansible.builtin.set_fact:
     downstream_clusters_id: "{{ downstream_clusters_cluster.resources[0].status.clusterName }}"
 
-# provisioning status.ready and the Connected condition both survive uninstall-rancher, so neither shows
-# that an agent still trusts Rancher. A redeploy with a new self-signed CA changes the checksum instead.
+# provisioning status.ready and the Connected condition both survive uninstall-rancher and a hostname
+# change, so neither shows that an agent still reaches Rancher. The agent's CA checksum and server do.
 - name: Read the Rancher CA
   kubernetes.core.k8s_info:
     api_version: management.cattle.io/v3
@@ -81,21 +81,22 @@
     name: cacerts
   register: downstream_clusters_cacerts
 
-- name: Read the CA checksum of the agent in rp-{{ downstream_clusters_name }}
+- name: Read the Rancher CA checksum and server of the agent in rp-{{ downstream_clusters_name }}
   ansible.builtin.command: >-
     {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }} -n cattle-system
     get deployment cattle-cluster-agent
-    -o 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="CATTLE_CA_CHECKSUM")].value}'
-  register: downstream_clusters_agent_checksum
+    -o 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="CATTLE_CA_CHECKSUM")].value}
+    {.spec.template.spec.containers[0].env[?(@.name=="CATTLE_SERVER")].value}'
+  register: downstream_clusters_agent_env
   changed_when: false
   failed_when: false
 
 # Mirrors CAChecksum() in Rancher's pkg/systemtemplate.
-- name: Compare the agent CA of {{ downstream_clusters_name }}
+- name: Compare Rancher with the agent of {{ downstream_clusters_name }}
   ansible.builtin.set_fact:
-    downstream_clusters_ca_current: >-
-      {{ downstream_clusters_agent_checksum.rc == 0
-         and downstream_clusters_agent_checksum.stdout == rancher_ca_checksum }}
+    downstream_clusters_agent_current: >-
+      {{ downstream_clusters_agent_env.rc == 0
+         and downstream_clusters_agent_env.stdout.split() == [rancher_ca_checksum, 'https://' ~ rancher_hostname] }}
   vars:
     rancher_ca: "{{ downstream_clusters_cacerts.resources[0].value | default('') }}"
     newline: "\n"
@@ -109,13 +110,13 @@
     {{ kubectl_bin }} wait clusters.management.cattle.io/{{ downstream_clusters_id }} --for=condition=Connected
     --timeout=60s
   register: downstream_clusters_connected
-  when: downstream_clusters_ca_current | bool
+  when: downstream_clusters_agent_current | bool
   changed_when: false
   failed_when: false
 
-# Re-applying the manifest also updates the agent's Rancher CA checksum.
+# Re-applying the manifest also updates the agent's Rancher CA checksum and server.
 - name: Import the cluster {{ downstream_clusters_name }}
-  when: not downstream_clusters_ca_current | bool or downstream_clusters_connected.rc != 0
+  when: not downstream_clusters_agent_current | bool or downstream_clusters_connected.rc != 0
   block:
     - name: Read the registration token of {{ downstream_clusters_name }}
       kubernetes.core.k8s_info:
@@ -148,12 +149,14 @@
       no_log: true
 
     # The URL points at this host (see /etc/hosts), which may serve a self-signed or staging certificate.
+    # Rancher keeps the old host in manifestUrl after server-url changes, so only its path is used.
     - name: Download the registration manifest of {{ downstream_clusters_name }}
       ansible.builtin.get_url:
         url: >-
-          {{ downstream_clusters_token_status.manifestUrl | replace('{token}',
-             downstream_clusters_token_status.token
-             or downstream_clusters_token_secret.resources[0].data.token | b64decode) }}
+          {{ downstream_clusters_token_status.manifestUrl
+             | regex_replace('^https://[^/]+', 'https://' ~ rancher_hostname)
+             | replace('{token}', downstream_clusters_token_status.token
+                       or downstream_clusters_token_secret.resources[0].data.token | b64decode) }}
         dest: "{{ rancher_dev_dir }}/import-{{ downstream_clusters_name }}.yaml"
         mode: "0600"
         force: true

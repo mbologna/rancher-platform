@@ -47,14 +47,13 @@
     - name: Validate required settings
       ansible.builtin.assert:
         that:
-          - rancher_hostname is defined
           - rancher_bootstrap_password is defined
           - rancher_bootstrap_password != 'CHANGE_ME'
           - rancher_bootstrap_password | length >= 12
           - rancher_tls_source in ['rancher', 'letsEncrypt']
           - rancher_tls_source != 'letsEncrypt' or rancher_letsencrypt_email | length > 0
         fail_msg: >-
-          Set rancher_hostname in the inventory and rancher_bootstrap_password (12+ characters) in
+          Set rancher_bootstrap_password (12+ characters) in
           group_vars/all/secrets.yml (copy secrets.yml.example). rancher_tls_source must be rancher or
           letsEncrypt; letsEncrypt also needs rancher_letsencrypt_email.
         quiet: true
