@@ -49,7 +49,6 @@ jobs:
                 ansible_connection: local
                 ansible_host: ${ip}
                 ansible_user: ${USER}
-                rancher_hostname: rancher.${ip}.sslip.io
                 install_docker: false
                 downstream_clusters: [e2e]
           INVENTORY
