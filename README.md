@@ -2,7 +2,7 @@
 
 [![E2E](https://github.com/mbologna/rancher-platform/actions/workflows/e2e.yml/badge.svg)](https://github.com/mbologna/rancher-platform/actions/workflows/e2e.yml)
 [![Lint](https://github.com/mbologna/rancher-platform/actions/workflows/lint.yml/badge.svg)](https://github.com/mbologna/rancher-platform/actions/workflows/lint.yml)
-[![Release](https://img.shields.io/github/v/release/mbologna/rancher-platform)](https://github.com/mbologna/rancher-platform/releases)
+[![Version](https://img.shields.io/github/v/tag/mbologna/rancher-platform?label=version)](https://github.com/mbologna/rancher-platform/tags)
 
 Install [Rancher](https://www.rancher.com/) on one Linux host with Ansible, in about seven
 minutes.
