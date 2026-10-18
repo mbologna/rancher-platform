@@ -23,7 +23,6 @@ servers:
       ansible_host: ${ip}
       ansible_user: ${user}
       ansible_ssh_private_key_file: ~/.lima/_config/user
-      rancher_hostname: rancher.${ip}.sslip.io
 INVENTORY
         echo "VM ${NAME} is at ${ip}. Deploy with: cd ansible && ./manage.sh deploy -i inventory/lima.yml"
         ;;
