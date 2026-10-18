@@ -1,0 +1,77 @@
+---
+# Fleet GitRepos that deploy fleet_apps to every cluster. Each app gets one GitRepo per workspace, because a
+# GitRepo only targets clusters in its own workspace. GitRepos this role creates carry fleet_apps_label;
+# prune touches nothing else.
+- name: Check the Fleet apps
+  ansible.builtin.assert:
+    that:
+      - fleet_apps is sequence and fleet_apps is not string
+      - fleet_apps | reject('mapping') | list | length == 0
+      - fleet_apps_names | reject('match', '^[a-z0-9]([-a-z0-9]{0,51}[a-z0-9])?$') | list | length == 0
+      - fleet_apps_names | unique | length == fleet_apps_names | length
+      - fleet_apps | map(attribute='repo', default='') | reject | list | length == 0
+      - fleet_apps | map(attribute='paths', default='') | reject | list | length == 0
+    fail_msg: >-
+      fleet_apps must be a list of {name, repo, paths, branch (optional)} with unique lowercase DNS-label
+      names; got {{ fleet_apps }}.
+
+# The GitRepo CRD appears once Rancher has deployed Fleet.
+- name: Register the Fleet apps
+  kubernetes.core.k8s:
+    definition:
+      apiVersion: fleet.cattle.io/v1alpha1
+      kind: GitRepo
+      metadata:
+        name: "{{ item[0].name }}"
+        namespace: "{{ item[1] }}"
+        labels: "{{ {fleet_apps_label: 'true'} }}"
+      spec: >-
+        {{ {'repo': item[0].repo, 'paths': item[0].paths, 'targets': [{'clusterSelector': {}}]}
+           | combine({'branch': item[0].branch} if item[0].branch is defined else {}) }}
+  loop: "{{ fleet_apps | product(fleet_apps_workspaces) | list }}"
+  loop_control:
+    label: "{{ item[1] }}/{{ item[0].name }}"
+  register: fleet_apps_registered
+  until: fleet_apps_registered is succeeded
+  retries: 20
+  delay: 15
+
+- name: Wait for Fleet to deploy the apps
+  kubernetes.core.k8s_info:
+    api_version: fleet.cattle.io/v1alpha1
+    kind: GitRepo
+    name: "{{ item[0].name }}"
+    namespace: "{{ item[1] }}"
+  loop: "{{ fleet_apps | product(fleet_apps_workspaces) | list }}"
+  loop_control:
+    label: "{{ item[1] }}/{{ item[0].name }}"
+  register: fleet_apps_status
+  until: >-
+    fleet_apps_status.resources | map(attribute='status.conditions', default=[]) | flatten
+    | selectattr('type', 'equalto', 'Ready') | selectattr('status', 'equalto', 'True') | list | length > 0
+  retries: 60
+  delay: 10
+
+- name: Find Fleet apps that are no longer listed
+  kubernetes.core.k8s_info:
+    api_version: fleet.cattle.io/v1alpha1
+    kind: GitRepo
+    namespace: "{{ item }}"
+    label_selectors: ["{{ fleet_apps_label }}=true"]
+  loop: "{{ fleet_apps_workspaces }}"
+  register: fleet_apps_existing
+  failed_when: false
+
+# Fleet removes an app's resources from every cluster when its GitRepo goes.
+- name: Remove unlisted Fleet apps
+  kubernetes.core.k8s:
+    api_version: fleet.cattle.io/v1alpha1
+    kind: GitRepo
+    name: "{{ item.metadata.name }}"
+    namespace: "{{ item.metadata.namespace }}"
+    state: absent
+  loop: >-
+    {{ fleet_apps_existing.results | map(attribute='resources', default=[]) | flatten
+       | rejectattr('metadata.name', 'in', fleet_apps_names) | list }}
+  loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"

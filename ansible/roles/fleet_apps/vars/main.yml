@@ -1,0 +1,5 @@
+---
+fleet_apps_label: rancher-platform.mbologna.github.io/fleet-app
+# fleet-local holds the Rancher cluster, fleet-default the imported ones.
+fleet_apps_workspaces: [fleet-local, fleet-default]
+fleet_apps_names: "{{ fleet_apps | map(attribute='name', default='') | list }}"

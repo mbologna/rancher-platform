@@ -11,8 +11,9 @@
       - >-
         downstream_clusters_specs | map(attribute='kubernetes_version', default=kind_node_version)
         | reject('match', downstream_clusters_version_pattern) | list | length == 0
+      - downstream_clusters_specs | map(attribute='labels', default={}) | reject('mapping') | list | length == 0
     fail_msg: >-
-      downstream_clusters must list unique names, or {name, kubernetes_version} entries, where a name is a
+      downstream_clusters must list unique names, or {name, kubernetes_version, labels} entries, where a name is a
       lowercase DNS label of up to 30 characters other than "local" and a version looks like v1.36.4;
       got {{ downstream_clusters }}.
 
