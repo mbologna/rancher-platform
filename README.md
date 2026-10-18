@@ -56,23 +56,6 @@ step 2. Your [kubeconfig](#kubeconfig) is at `~/.kube/rancher-platform.yaml`.
 To encrypt the password file, run `ansible-vault encrypt group_vars/all/secrets.yml`;
 `manage.sh` then asks for the vault password.
 
-## Add downstream clusters
-
-List cluster names in `downstream_clusters`:
-
-```bash
-./manage.sh deploy -e '{"downstream_clusters": ["dev", "staging"]}'
-```
-
-For each name, `deploy` creates a kind cluster `rp-<name>` on the host, imports it into Rancher
-and waits until Rancher reports it ready. The clusters need Docker, which `deploy` installs.
-Inside them, CoreDNS resolves `rancher_hostname` to the host's private address, so the agents
-reach Rancher without leaving the host.
-
-Removing a name and deploying again deletes that cluster from Rancher and kind. Clusters that
-`deploy` did not create are left alone. To keep the list, set `downstream_clusters` in
-[`config.yml`](ansible/group_vars/all/config.yml).
-
 ## Create a host on AWS
 
 The configuration in `terraform/` creates a `t3.xlarge` instance running openSUSE Leap 16.0,
@@ -102,6 +85,23 @@ Rancher then answers on `rancher.<vm-ip>.sslip.io` from the Mac. Tested on Apple
 cd ansible && ./manage.sh deploy -i inventory/lima.yml
 ./local/lima.sh down   # deletes the VM
 ```
+
+## Add downstream clusters
+
+List cluster names in `downstream_clusters`:
+
+```bash
+./manage.sh deploy -e '{"downstream_clusters": ["dev", "staging"]}'
+```
+
+For each name, `deploy` creates a kind cluster `rp-<name>` on the host, imports it into Rancher
+and waits until Rancher reports it ready. The clusters need Docker, which `deploy` installs.
+Inside them, CoreDNS resolves `rancher_hostname` to the host's private address, so the agents
+reach Rancher without leaving the host.
+
+Removing a name and deploying again deletes that cluster from Rancher and kind. Clusters that
+`deploy` did not create are left alone. To keep the list, set `downstream_clusters` in
+[`config.yml`](ansible/group_vars/all/config.yml).
 
 ## Kubeconfig
 
