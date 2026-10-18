@@ -53,7 +53,7 @@
       metadata:
         name: "{{ downstream_clusters_name }}"
         namespace: fleet-default
-        labels: "{{ {downstream_clusters_label: 'true'} }}"
+        labels: "{{ downstream_clusters_spec.labels | default({}) | combine({downstream_clusters_label: 'true'}) }}"
         annotations: >-
           {{ {} if downstream_clusters_existing.resources
              else {'field.cattle.io/no-creator-rbac': 'true'} }}
@@ -73,6 +73,19 @@
 - name: Note the Rancher ID of {{ downstream_clusters_name }}
   ansible.builtin.set_fact:
     downstream_clusters_id: "{{ downstream_clusters_cluster.resources[0].status.clusterName }}"
+
+# Rancher copies provisioning labels to the management cluster only on creation, and Fleet reads them
+# from the management cluster. Labels removed from the entry stay until the cluster is recreated.
+- name: Set the Fleet labels of {{ downstream_clusters_name }}
+  kubernetes.core.k8s:
+    api_version: management.cattle.io/v3
+    kind: Cluster
+    name: "{{ downstream_clusters_id }}"
+    state: patched
+    definition:
+      metadata:
+        labels: "{{ downstream_clusters_spec.labels }}"
+  when: downstream_clusters_spec.labels | default({}) | length > 0
 
 # provisioning status.ready and the Connected condition both survive uninstall-rancher and a hostname
 # change, so neither shows that an agent still reaches Rancher. The agent's CA checksum and server do.

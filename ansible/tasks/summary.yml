@@ -18,6 +18,10 @@
         Downstream:  {{ (downstream_clusters | select('string') | list
                          + downstream_clusters | reject('string') | map(attribute='name') | list) | join(', ')
                         if downstream_clusters else summary_downstream_none }}
+      - "{{ summary_fleet_apps }}"
+    summary_fleet_apps: >-
+      Fleet apps:  {{ fleet_apps | map(attribute='name') | join(', ') if fleet_apps
+                      else 'none (set fleet_apps to deploy apps to every cluster)' }}
     summary_downstream_none: none (set downstream_clusters to import kind clusters)
     summary_fleet_done: "Fleet:       rancher-fleet-clusters registered as a GitRepo in fleet-local"
     summary_fleet_next: >-

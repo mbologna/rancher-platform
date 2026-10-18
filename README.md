@@ -90,6 +90,36 @@ downstream_clusters:
   - {name: staging, kubernetes_version: v1.35.8}
 ```
 
+### Deploy apps to every cluster
+
+Fleet, which ships with Rancher, can deploy apps from Git repositories to the Rancher cluster and
+every imported cluster. `fleet_apps_examples` lists four sample apps:
+
+| App | Source | Namespace |
+|---|---|---|
+| `podinfo` | [stefanprodan/podinfo](https://github.com/stefanprodan/podinfo) Helm chart | `default` |
+| `guestbook` | [rancher/fleet-examples](https://github.com/rancher/fleet-examples) `simple` | `default` |
+| `guestbook-helm` | fleet-examples `single-cluster/helm` | `fleet-helm-example` |
+| `guestbook-multi` | fleet-examples `multi-cluster/helm` | `fleet-mc-helm-example` |
+
+```yaml
+fleet_apps: "{{ fleet_apps_examples }}"
+downstream_clusters:
+  - {name: dev, labels: {env: dev}}
+  - {name: staging, labels: {env: test}}
+```
+
+`deploy` creates one Fleet GitRepo per app in `fleet-local` (the Rancher cluster) and in
+`fleet-default` (the imported clusters, including any created with Cluster API), and waits until
+Fleet reports them ready. Removing an entry removes that app from every cluster. Your own apps
+take the same form: `{name, repo, paths, branch}`, where `branch` defaults to `master`.
+
+`guestbook-multi` reads the cluster label `env`: `dev` drops the Redis replicas and `test` runs
+three frontends. `env: prod` asks for a `LoadBalancer` Service, which kind clusters cannot
+provide. The apps have no ingress; reach them with `kubectl port-forward`, for example
+`kubectl port-forward svc/podinfo-charts-podinfo 9898` (podinfo) or
+`kubectl port-forward svc/frontend 8080:80` (guestbook).
+
 ## 4. Use the clusters
 
 `deploy` writes `~/.kube/rancher-platform.yaml`, with one context per cluster, all reached
@@ -155,6 +185,7 @@ Settings and pinned versions live in
 | `rancher_hostname` | `ansible_host` or `rancher.<ip>.sslip.io` | Name Rancher answers on. Changing it on a running host moves Rancher, the kubeconfig and the downstream agents to the new name. |
 | `rancher_tls_source` | `rancher` | `rancher` (self-signed) or `letsEncrypt`; the latter needs `rancher_letsencrypt_email`, public DNS and port 80 open to the internet. |
 | `downstream_clusters` | `[]` | kind clusters to create and import. |
+| `fleet_apps` | `[]` | Git repositories Fleet deploys to every cluster; `fleet_apps_examples` holds four samples. |
 | `rke2_ingress_controller` | `traefik` | `traefik` or `ingress-nginx`. |
 | `selinux_mode` | `permissive` | `""` leaves SELinux alone. |
 | `install_docker` | `true` | Install Docker on the host. |
@@ -178,8 +209,8 @@ pre-commit install && pre-commit run --all-files
 Every pull request runs the same hooks in the [Lint workflow](.github/workflows/lint.yml), plus
 trivy and zizmor in the [Security workflow](.github/workflows/security.yml). Pull requests that
 touch `ansible/` also run the [E2E workflow](.github/workflows/e2e.yml): it deploys with one
-downstream cluster on the GitHub runner, re-runs expecting no changes and checks that Rancher
-answers. No workflow uses cloud resources.
+downstream cluster and podinfo as a Fleet app on the GitHub runner, re-runs expecting no changes,
+and checks that Rancher answers and podinfo runs on both clusters. No workflow uses cloud resources.
 
 Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/); the
 [Release workflow](.github/workflows/release.yml) turns them into `CHANGELOG.md` and version tags.

@@ -91,6 +91,10 @@
       vars:
         ansible_python_interpreter: "{{ k8s_python }}"
       tags: [downstream]
+    - role: fleet_apps
+      vars:
+        ansible_python_interpreter: "{{ k8s_python }}"
+      tags: [fleet]
     - role: capi_providers
       when: capi_providers_enabled | bool
       vars:

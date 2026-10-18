@@ -51,6 +51,8 @@ jobs:
                 ansible_user: ${USER}
                 install_docker: false
                 downstream_clusters: [e2e]
+                fleet_apps:
+                  - {name: podinfo, repo: "https://github.com/stefanprodan/podinfo", paths: [charts/podinfo]}
           INVENTORY
           password=$(openssl rand -hex 16)
           echo "::add-mask::${password}"
@@ -72,6 +74,13 @@ jobs:
           /usr/local/bin/kubectl --kubeconfig ~/.kube/rancher-platform.yaml \
             wait clusters.provisioning.cattle.io/e2e -n fleet-default \
             --for=jsonpath='{.status.ready}'=true --timeout=60s
+
+      - name: Check that Fleet deployed podinfo to both clusters
+        run: |
+          for kubeconfig in /etc/rancher/rke2/rke2.yaml /root/.rancher-dev/kind-e2e.yaml; do
+            sudo /usr/local/bin/kubectl --kubeconfig "${kubeconfig}" \
+              rollout status deployment/podinfo-charts-podinfo -n default --timeout=120s
+          done
 
       - name: Show cluster state
         if: failure()
