@@ -80,6 +80,16 @@ when `deploy` finishes. Drop a name and deploy again to delete that cluster; clu
 did not create are left alone. Set `downstream_clusters` in
 [`config.yml`](ansible/group_vars/all/config.yml) to keep the list.
 
+Clusters run Kubernetes 1.36 unless an entry picks another version that Rancher supports. The
+version applies when the cluster is created:
+
+```yaml
+downstream_clusters:
+  - dev                                         # v1.36.4
+  - {name: legacy, kubernetes_version: v1.34.11}
+  - {name: staging, kubernetes_version: v1.35.8}
+```
+
 ## 4. Use the clusters
 
 `deploy` writes `~/.kube/rancher-platform.yaml`, with one context per cluster, all reached

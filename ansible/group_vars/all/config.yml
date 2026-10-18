@@ -65,13 +65,16 @@ capi_providers_values_url: >-
 # Region written to CAPA's credentials profile.
 capa_aws_region: eu-west-1
 
-# Downstream clusters: kind clusters on this host, imported into Rancher. Names must be lowercase
-# DNS labels; each cluster uses about 1 GB of RAM. Removing a name deletes its cluster on the next
-# deploy. Needs Docker (install_docker or a host that already runs it).
+# Downstream clusters: kind clusters on this host, imported into Rancher. Each entry is a name (a
+# lowercase DNS label) or {name: ..., kubernetes_version: v1.35.8} to pick a node image from the kind
+# release below; the version applies when the cluster is created. Each cluster uses about 1 GB of RAM.
+# Removing an entry deletes its cluster on the next deploy. Needs Docker (install_docker or a host that
+# already runs it).
 downstream_clusters: []
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
 kind_version: "v0.33.0"
-# Rancher 2.15 manages Kubernetes 1.34-1.36; use a node image the kind release above lists.
+# Default node version. Rancher 2.15 manages Kubernetes 1.34-1.36; kind v0.33.0 lists v1.34.11, v1.35.8
+# and v1.36.4.
 # renovate: datasource=docker depName=kindest/node
 kind_node_version: "v1.36.4"
 

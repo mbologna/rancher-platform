@@ -1,8 +1,10 @@
 ---
+# kind cannot upgrade a cluster, so kubernetes_version applies when the cluster is created.
 - name: Create the kind cluster rp-{{ downstream_clusters_name }}
   ansible.builtin.command: >-
     {{ bin_dir }}/kind create cluster --name rp-{{ downstream_clusters_name }}
-    --image kindest/node:{{ kind_node_version }} --kubeconfig {{ downstream_clusters_kubeconfig }}
+    --image kindest/node:{{ downstream_clusters_spec.kubernetes_version | default(kind_node_version) }}
+    --kubeconfig {{ downstream_clusters_kubeconfig }}
   when: ('rp-' ~ downstream_clusters_name) not in (downstream_clusters_kind_list.stdout_lines | default([]))
   changed_when: true
 
