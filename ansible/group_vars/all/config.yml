@@ -81,6 +81,9 @@ local_kubeconfig: ~/.kube/rancher-platform.yaml
 # 30-day Rancher token. false fetches the RKE2 admin kubeconfig instead (port 6443, local cluster only).
 kubeconfig_via_rancher: true
 kubeconfig_refresh: false
+# Context, cluster and user names: <name> for the Rancher host, <name>-<cluster> for downstream clusters.
+# Distinct names let you merge the files of several hosts.
+kubeconfig_context_name: "{{ inventory_hostname }}"
 k8s_venv: /opt/rancher-platform/venv
 k8s_python: "{{ k8s_venv }}/bin/python"
 bin_dir: /usr/local/bin

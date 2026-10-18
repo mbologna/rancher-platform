@@ -101,8 +101,10 @@ the internet. For example:
 
 ## Kubeconfig
 
-`deploy` writes `~/.kube/rancher-platform.yaml` with one context per cluster: `local` for the
-Rancher host and one per [downstream cluster](#downstream-clusters-optional). Every context goes
+`deploy` writes `~/.kube/rancher-platform.yaml` with one context per cluster: the inventory
+host name (for example `leto`) for the Rancher host and `<host>-<name>` for each
+[downstream cluster](#downstream-clusters-optional). Set `kubeconfig_context_name` to choose
+another prefix; distinct prefixes let you merge the files of several hosts. Every context goes
 through Rancher on port 443 (`https://<rancher_hostname>/k8s/clusters/<id>`), so the file works
 from networks that block port 6443. It holds an `admin` token that expires after 30 days;
 `./manage.sh kubeconfig` replaces it and revokes the old one. `deploy` also replaces it when the
