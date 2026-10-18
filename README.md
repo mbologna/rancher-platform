@@ -19,30 +19,32 @@ You need a Linux host you can SSH into as root or as a user with passwordless su
 - 4 vCPUs, 16 GB RAM and 100 GB disk, plus about 1 GB RAM per downstream cluster;
 - ports 80 and 443 reachable from your browser.
 
-**Use a host you have.** Copy the inventory and set the host's address and the name Rancher will
-answer on. `rancher.<ip>.sslip.io` works without DNS.
+Then pick one:
 
-```bash
-cp ansible/inventory/hosts.yml.example ansible/inventory/hosts.yml   # ansible_host, rancher_hostname
-```
+- **A host you have.** Copy the inventory and set the host's address and the name Rancher will
+  answer on. `rancher.<ip>.sslip.io` works without DNS.
 
-**Or create one on AWS.** `terraform/` creates a `t3.xlarge` openSUSE Leap 16.0 instance with a
-100 GB encrypted disk and an Elastic IP, and writes the inventory for you, with Rancher on
-`rancher.<elastic-ip>.sslip.io`. SSH and the Kubernetes API are open only to the CIDRs you set.
-You need [OpenTofu](https://opentofu.org/) or Terraform 1.6+ and AWS credentials.
+  ```bash
+  cp ansible/inventory/hosts.yml.example ansible/inventory/hosts.yml   # ansible_host, rancher_hostname
+  ```
 
-```bash
-cp terraform/terraform.tfvars.example terraform/terraform.tfvars   # region, SSH key, source CIDRs
-tofu -chdir=terraform init && tofu -chdir=terraform apply
-```
+- **A new host on AWS.** `terraform/` creates a `t3.xlarge` openSUSE Leap 16.0 instance with a
+  100 GB encrypted disk and an Elastic IP, and writes the inventory for you, with Rancher on
+  `rancher.<elastic-ip>.sslip.io`. SSH and the Kubernetes API are open only to the CIDRs you set.
+  You need [OpenTofu](https://opentofu.org/) or Terraform 1.6+ and AWS credentials.
 
-**Or run one on your Mac.** [Lima](https://lima-vm.io/) starts an openSUSE Leap 16 VM (4 vCPUs,
-12 GiB RAM, 60 GiB disk) and writes `ansible/inventory/lima.yml`; add `-i inventory/lima.yml` to
-the commands below.
+  ```bash
+  cp terraform/terraform.tfvars.example terraform/terraform.tfvars   # region, SSH key, source CIDRs
+  tofu -chdir=terraform init && tofu -chdir=terraform apply
+  ```
 
-```bash
-./local/lima.sh up
-```
+- **A VM on your Mac.** [Lima](https://lima-vm.io/) starts an openSUSE Leap 16 VM (4 vCPUs,
+  12 GiB RAM, 60 GiB disk) and writes `ansible/inventory/lima.yml`; add `-i inventory/lima.yml`
+  to the commands below.
+
+  ```bash
+  ./local/lima.sh up
+  ```
 
 ## 2. Install Rancher
 
@@ -66,7 +68,7 @@ The remaining `./manage.sh` commands also run from `ansible/`.
 means, or if another service holds port 80, 443, 6443, 9345 or 10250. `./manage.sh reset` wipes
 such a host and deploys.
 
-## 3. Give Rancher clusters to manage
+## 3. Give Rancher clusters to manage (optional)
 
 ```bash
 ./manage.sh deploy -e '{"downstream_clusters": ["dev", "staging"]}'
