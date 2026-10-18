@@ -5,11 +5,16 @@
   ansible.builtin.assert:
     that:
       - downstream_clusters is sequence and downstream_clusters is not string
-      - downstream_clusters | reject('match', downstream_clusters_name_pattern) | list | length == 0
-      - "'local' not in downstream_clusters"
+      - downstream_clusters_names | reject('match', downstream_clusters_name_pattern) | list | length == 0
+      - "'local' not in downstream_clusters_names"
+      - downstream_clusters_names | unique | length == downstream_clusters_names | length
+      - >-
+        downstream_clusters_specs | map(attribute='kubernetes_version', default=kind_node_version)
+        | reject('match', downstream_clusters_version_pattern) | list | length == 0
     fail_msg: >-
-      downstream_clusters must be a list of lowercase DNS labels of up to 30 characters, other than
-      "local"; got {{ downstream_clusters }}.
+      downstream_clusters must list unique names, or {name, kubernetes_version} entries, where a name is a
+      lowercase DNS label of up to 30 characters other than "local" and a version looks like v1.36.4;
+      got {{ downstream_clusters }}.
 
 - name: Check that Docker is running
   ansible.builtin.command: docker version
@@ -49,9 +54,12 @@
 
 - name: Import the clusters
   ansible.builtin.include_tasks: cluster.yml
-  loop: "{{ downstream_clusters }}"
+  loop: "{{ downstream_clusters_specs }}"
   loop_control:
-    loop_var: downstream_clusters_name
+    loop_var: downstream_clusters_spec
+    label: "{{ downstream_clusters_spec.name }}"
+  vars:
+    downstream_clusters_name: "{{ downstream_clusters_spec.name }}"
 
 - name: Find imported clusters that are no longer listed
   kubernetes.core.k8s_info:
@@ -72,13 +80,13 @@
     wait_timeout: 600
   loop: >-
     {{ downstream_clusters_rancher_clusters.resources | map(attribute='metadata.name')
-       | reject('in', downstream_clusters) | list }}
+       | reject('in', downstream_clusters_names) | list }}
 
 - name: Delete unlisted kind clusters
   ansible.builtin.command: "{{ bin_dir }}/kind delete cluster --name {{ item }}"
   loop: >-
     {{ (downstream_clusters_kind_list.stdout_lines | default([])) | select('match', '^rp-')
-       | reject('in', downstream_clusters | map('regex_replace', '^', 'rp-') | list) | list }}
+       | reject('in', downstream_clusters_names | map('regex_replace', '^', 'rp-') | list) | list }}
   changed_when: true
 
 - name: Remove the kubeconfigs and import manifests of deleted clusters
@@ -87,5 +95,5 @@
     state: absent
   loop: >-
     {{ (downstream_clusters_kind_list.stdout_lines | default([])) | select('match', '^rp-')
-       | reject('in', downstream_clusters | map('regex_replace', '^', 'rp-') | list) | list
+       | reject('in', downstream_clusters_names | map('regex_replace', '^', 'rp-') | list) | list
        | product(['kind', 'import']) | list }}

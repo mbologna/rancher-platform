@@ -1,4 +1,10 @@
 ---
 downstream_clusters_label: rancher-platform.mbologna.github.io/downstream
 downstream_clusters_kubeconfig: "{{ rancher_dev_dir }}/kind-{{ downstream_clusters_name }}.yaml"
+# downstream_clusters entries are names or {name, kubernetes_version}; these are the normalised forms.
+downstream_clusters_specs: >-
+  {{ downstream_clusters | select('string') | map('community.general.dict_kv', 'name') | list
+     + downstream_clusters | reject('string') | list }}
+downstream_clusters_names: "{{ downstream_clusters_specs | map(attribute='name', default='') | list }}"
+downstream_clusters_version_pattern: ^v1\.[0-9]+\.[0-9]+$
 downstream_clusters_name_pattern: ^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$
