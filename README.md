@@ -5,96 +5,121 @@
 [![Version](https://img.shields.io/github/v/tag/mbologna/rancher-platform?label=version)](https://github.com/mbologna/rancher-platform/tags)
 
 Install [Rancher](https://www.rancher.com/) on one Linux host with Ansible, in about seven
-minutes.
+minutes. If you have no host, create one on AWS or on your Mac first. Optionally, give Rancher
+some clusters to manage straight away.
 
-- **Any Linux host you can SSH into.** The playbook installs RKE2, cert-manager and Rancher, and
-  is safe to re-run.
-- **No host?** OpenTofu creates one on AWS, or Lima creates a local VM.
-- **Clusters to manage.** Optionally, the playbook creates kind clusters on the same host and
-  imports them into Rancher.
+The steps below go from a bare host to a Rancher managing its own clusters. Run the commands
+from the repository root unless noted; all of them are safe to re-run.
 
-## Quick start
+## 1. Get a host
 
-On your machine you need ansible-core 2.16 or later.
+You need a Linux host you can SSH into as root or as a user with passwordless sudo, with:
+
+- openSUSE Leap 16.0, SLES 15 SP7, or Ubuntu 22.04 or 24.04 (tested on 17 October 2026);
+- 4 vCPUs, 16 GB RAM and 100 GB disk, plus about 1 GB RAM per downstream cluster;
+- ports 80 and 443 reachable from your browser.
+
+**Use a host you have.** Copy the inventory and set the host's address and the name Rancher will
+answer on. `rancher.<ip>.sslip.io` works without DNS.
+
+```bash
+cp ansible/inventory/hosts.yml.example ansible/inventory/hosts.yml   # ansible_host, rancher_hostname
+```
+
+**Or create one on AWS.** `terraform/` creates a `t3.xlarge` openSUSE Leap 16.0 instance with a
+100 GB encrypted disk and an Elastic IP, and writes the inventory for you, with Rancher on
+`rancher.<elastic-ip>.sslip.io`. SSH and the Kubernetes API are open only to the CIDRs you set.
+You need [OpenTofu](https://opentofu.org/) or Terraform 1.6+ and AWS credentials.
+
+```bash
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars   # region, SSH key, source CIDRs
+tofu -chdir=terraform init && tofu -chdir=terraform apply
+```
+
+**Or run one on your Mac.** [Lima](https://lima-vm.io/) starts an openSUSE Leap 16 VM (4 vCPUs,
+12 GiB RAM, 60 GiB disk) and writes `ansible/inventory/lima.yml`; add `-i inventory/lima.yml` to
+the commands below.
+
+```bash
+./local/lima.sh up
+```
+
+## 2. Install Rancher
+
+You need ansible-core 2.16 or later on your machine. Set the Rancher admin password (12+
+characters), then deploy:
 
 ```bash
 cd ansible
-cp inventory/hosts.yml.example inventory/hosts.yml           # ansible_host, rancher_hostname
-cp group_vars/all/secrets.yml.example group_vars/all/secrets.yml   # admin password, 12+ chars
-./manage.sh install                                          # pinned Ansible collections
+cp group_vars/all/secrets.yml.example group_vars/all/secrets.yml
+./manage.sh install   # pinned Ansible collections
 ./manage.sh deploy
 ```
 
-Open `https://<rancher_hostname>` and log in as `admin`. `kubectl` works straight away with
-`~/.kube/rancher-platform.yaml`.
+The remaining `./manage.sh` commands also run from `ansible/`.
 
-`rancher.<ip>.sslip.io` works as a hostname without DNS. To encrypt the password file, run
-`ansible-vault encrypt group_vars/all/secrets.yml`; `manage.sh` then asks for the vault password.
-
-## Host requirements
-
-| | |
-|---|---|
-| OS | openSUSE Leap 16.0, SLES 15 SP7, Ubuntu 22.04 or 24.04 (tested 17 October 2026) |
-| Size | 4 vCPUs, 16 GB RAM, 100 GB disk; about 1 GB more RAM per downstream cluster |
-| Access | SSH as root or as a user with passwordless sudo |
-| Network | Ports 80 and 443 reachable from your browser |
+`deploy` installs RKE2, cert-manager and Rancher. Open `https://<rancher_hostname>` and log in as
+`admin`. To encrypt the password file, run `ansible-vault encrypt group_vars/all/secrets.yml`;
+`manage.sh` then asks for the vault password.
 
 `deploy` stops before changing anything if the host already runs RKE2 or K3s installed by other
-means, or if another service holds port 80, 443, 6443, 9345 or 10250. `./manage.sh reset`
-clears such a host.
+means, or if another service holds port 80, 443, 6443, 9345 or 10250. `./manage.sh reset` wipes
+such a host and deploys.
 
-## No host? Create one
-
-### On AWS
-
-`terraform/` creates a `t3.xlarge` openSUSE Leap 16.0 instance with a 100 GB encrypted disk and
-an Elastic IP. It needs [OpenTofu](https://opentofu.org/) or Terraform 1.6+ and AWS credentials.
-
-```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars   # region, SSH key, allowed source CIDRs
-tofu init && tofu apply
-```
-
-`tofu apply` writes the Ansible inventory, with Rancher on `rancher.<elastic-ip>.sslip.io`.
-Continue with the Quick start, skipping the `hosts.yml` line. SSH and the Kubernetes API are open
-only to your CIDRs; ports 80 and 443 are open to all. `tofu destroy` removes everything.
-
-### On your Mac
-
-[Lima](https://lima-vm.io/) runs an openSUSE Leap 16 VM (4 vCPUs, 12 GiB RAM, 60 GiB disk),
-reachable from the Mac. Tested on Apple silicon.
-
-```bash
-./local/lima.sh up                                       # writes ansible/inventory/lima.yml
-cd ansible && ./manage.sh deploy -i inventory/lima.yml
-./local/lima.sh down                                     # deletes the VM
-```
-
-## Downstream clusters
+## 3. Give Rancher clusters to manage
 
 ```bash
 ./manage.sh deploy -e '{"downstream_clusters": ["dev", "staging"]}'
 ```
 
-Each name becomes a kind cluster `rp-<name>` on the host, imported into Rancher and ready when
-`deploy` finishes. Drop a name and deploy again to delete that cluster; clusters `deploy` did not
-create are left alone. Set `downstream_clusters` in
+Each name becomes a kind cluster `rp-<name>` on the same host, imported into Rancher and ready
+when `deploy` finishes. Drop a name and deploy again to delete that cluster; clusters `deploy`
+did not create are left alone. Set `downstream_clusters` in
 [`config.yml`](ansible/group_vars/all/config.yml) to keep the list.
 
-## Kubeconfig
+## 4. Use the clusters
 
-`~/.kube/rancher-platform.yaml` has one context per cluster, reached through Rancher on port 443:
-`<host>` for the Rancher cluster and `<host>-<name>` for each downstream cluster, where `<host>`
-is the inventory name. Files from several hosts merge without clashes; `kubeconfig_context_name`
-changes the prefix.
+`deploy` writes `~/.kube/rancher-platform.yaml`, with one context per cluster, all reached
+through Rancher on port 443:
 
-The file holds an `admin` token valid for 30 days. `./manage.sh kubeconfig` issues a new one and
-revokes the old. If you change the `admin` password in the UI, set `rancher_admin_password` in
-`secrets.yml`; otherwise `deploy` falls back to the RKE2 kubeconfig on port 6443.
+```bash
+export KUBECONFIG=~/.kube/rancher-platform.yaml
+kubectl config get-contexts   # <host>, <host>-dev, <host>-staging
+```
 
-## Commands
+`<host>` is the inventory name, so files from several hosts merge without clashes;
+`kubeconfig_context_name` changes it. The file holds an `admin` token valid for 30 days.
+`./manage.sh kubeconfig` issues a new one and revokes the old. If you change the `admin`
+password in the UI, set `rancher_admin_password` in `secrets.yml`; otherwise `deploy` falls back
+to the RKE2 kubeconfig on port 6443.
+
+## 5. Keep it running
+
+**Upgrade.** Renovate proposes version bumps. Patch releases of RKE2, cert-manager and Rancher
+merge once the E2E workflow has deployed them; minor and major ones wait for review. Pull and run
+`./manage.sh deploy`. It refuses to skip a Kubernetes minor: go from 1.34 to 1.36 via
+`-e rke2_version=<a v1.35.x release>`.
+
+**Back up.** RKE2 snapshots etcd, which holds all cluster and Rancher state, every 12 hours to
+`/var/lib/rancher/rke2/server/db/snapshots`. Set `rke2_etcd_s3_bucket` to keep copies off the
+host. Restore with the [RKE2 procedure](https://docs.rke2.io/datastore/backup_restore).
+
+**Check.** `./manage.sh status` shows nodes, pods and Rancher.
+
+## 6. Tear it down
+
+| Host from | Command |
+|---|---|
+| AWS | `tofu -chdir=terraform destroy` |
+| Lima | `./local/lima.sh down` |
+| Your own | `./manage.sh uninstall-rancher`, then on the host `kind delete clusters --all` and `/usr/local/bin/rke2-uninstall.sh` |
+
+`uninstall-rancher` keeps RKE2 and the downstream clusters; the next `deploy` reinstalls Rancher
+and re-imports them.
+
+## Reference
+
+### Commands
 
 Run from `ansible/`. Extra arguments go to `ansible-playbook`.
 
@@ -104,10 +129,10 @@ Run from `ansible/`. Extra arguments go to `ansible-playbook`.
 | `./manage.sh deploy` | Install or upgrade everything to the pinned versions. |
 | `./manage.sh status` | Show node, pod and Rancher status. |
 | `./manage.sh kubeconfig` | Write a new kubeconfig and revoke the old one. |
-| `./manage.sh uninstall-rancher` | Remove Rancher and cert-manager; RKE2 and downstream clusters stay. The next `deploy` re-imports them. |
+| `./manage.sh uninstall-rancher` | Remove Rancher and cert-manager. |
 | `./manage.sh reset` | **Delete all cluster and Docker data** on the host, including RKE2, K3s, kind and k3d installed by anything, then deploy. |
 
-## Configuration
+### Configuration
 
 Settings and pinned versions live in
 [`ansible/group_vars/all/config.yml`](ansible/group_vars/all/config.yml).
@@ -124,24 +149,11 @@ Settings and pinned versions live in
 | `capi_providers_enabled` | `false` | Install Cluster API providers for [Rancher Turtles](https://turtles.docs.rancher.com/); AWS keys in `secrets.yml` enable CAPA. |
 | `fleet_gitrepo_enabled` | `false` | Register cluster definitions from [rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters). |
 
-## Operations
+### What deploy changes on the host
 
-**Upgrades.** Renovate proposes version bumps. Patch releases of RKE2, cert-manager and Rancher
-merge once the E2E workflow has deployed them; minor and major ones wait for review. Run
-`./manage.sh deploy` to apply. `deploy` refuses to skip a Kubernetes minor: go from 1.34 to 1.36
-via `-e rke2_version=<a v1.35.x release>`.
-
-**Backups.** RKE2 snapshots etcd, which holds all cluster and Rancher state, to
-`/var/lib/rancher/rke2/server/db/snapshots`. Set `rke2_etcd_s3_bucket` to keep copies off the
-host. Restore with the [RKE2 procedure](https://docs.rke2.io/datastore/backup_restore).
-
-**Removal.** On AWS, `tofu destroy`. On your own host, `./manage.sh uninstall-rancher`, then on
-the host `kind delete clusters --all` and `/usr/local/bin/rke2-uninstall.sh`.
-
-**Host changes.** `deploy` disables firewalld and ufw, sets SELinux to permissive, installs
-Docker, a Python virtualenv, RKE2, `kubectl`, `helm` and helper scripts (`cluster-status`,
-`rancher-logs`), writes kernel settings and adds `rancher_hostname` to `/etc/hosts`. Only `reset`
-removes existing workloads.
+It disables firewalld and ufw, sets SELinux to permissive, installs Docker, a Python virtualenv,
+RKE2, `kubectl`, `helm` and helper scripts (`cluster-status`, `rancher-logs`), writes kernel
+settings and adds `rancher_hostname` to `/etc/hosts`. Only `reset` removes existing workloads.
 
 ## Development
 
