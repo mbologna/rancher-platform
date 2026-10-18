@@ -25,6 +25,13 @@ cert_manager_version: "v1.21.2"
 # renovate: datasource=helm depName=rancher registryUrl=https://releases.rancher.com/server-charts/stable
 rancher_version: "2.15.2"
 rancher_chart_repo: https://releases.rancher.com/server-charts/stable
+# Name Rancher answers on. Set it per host in the inventory to override the default: the host's
+# address when it is a DNS name (erlara.example.com), otherwise rancher.<ip>.sslip.io.
+rancher_hostname: >-
+  {{ rancher_host_address if rancher_host_address is match('^(?![0-9.]+$)[^:]+\.[^:]+$')
+     else 'rancher.' ~ (rancher_host_address if rancher_host_address is match('^[0-9.]+$')
+                        else ansible_facts.default_ipv4.address) ~ '.sslip.io' }}
+rancher_host_address: "{{ ansible_host | default(inventory_hostname) }}"
 # TLS for the Rancher ingress: "rancher" (self-signed CA) or "letsEncrypt" (HTTP-01; port 80 must be
 # reachable from the internet and rancher_hostname must resolve publicly).
 rancher_tls_source: rancher

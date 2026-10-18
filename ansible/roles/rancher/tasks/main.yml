@@ -59,7 +59,8 @@
   retries: 20
   delay: 15
 
-- name: Set the Rancher server URL when empty
+# Agents and registration manifests use server-url, so it follows rancher_hostname.
+- name: Set the Rancher server URL to https://{{ rancher_hostname }}
   kubernetes.core.k8s:
     api_version: management.cattle.io/v3
     kind: Setting
@@ -67,7 +68,7 @@
     state: patched
     definition:
       value: https://{{ rancher_hostname }}
-  when: rancher_server_url.resources[0].value | default('') | length == 0
+  when: rancher_server_url.resources[0].value | default('') != 'https://' ~ rancher_hostname
 
 # Both TLS sources use an Issuer named "rancher", so switching source keeps the old certificate.
 # Compare the signing CA with the configured source and re-issue on mismatch.
