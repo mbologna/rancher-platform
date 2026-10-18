@@ -1,12 +1,12 @@
 # rancher-platform
 
-Install [Rancher](https://www.rancher.com/) on one Linux host with Ansible, optionally with
-downstream clusters already imported.
+Install [Rancher](https://www.rancher.com/) on one Linux host with Ansible. If you have no
+host, OpenTofu creates one on AWS. Optionally, downstream clusters are created and imported.
 
 The playbook installs RKE2, cert-manager and Rancher on a host you already have, and it is safe
-to re-run. It can also create kind clusters on the same host and register them in Rancher, so
-there are clusters to manage straight away. If you have no suitable host, an OpenTofu
-configuration creates one on AWS.
+to re-run. If you have no suitable host, an OpenTofu configuration creates one on AWS. The
+playbook can also create kind clusters on the same host and register them in Rancher, so there
+are clusters to manage straight away.
 
 A fresh deploy takes about seven minutes. A re-run that changes nothing takes about one minute.
 
