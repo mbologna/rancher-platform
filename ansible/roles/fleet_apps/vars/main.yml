@@ -2,4 +2,14 @@
 fleet_apps_label: rancher-platform.mbologna.github.io/fleet-app
 # fleet-local holds the Rancher cluster, fleet-default the imported ones.
 fleet_apps_workspaces: [fleet-local, fleet-default]
+fleet_apps_defaults:
+  workspaces: "{{ fleet_apps_workspaces }}"
+  targets: [{clusterSelector: {}}]
+  keep_resources: false
 fleet_apps_names: "{{ fleet_apps | map(attribute='name', default='') | list }}"
+fleet_apps_specs: "{{ [fleet_apps_defaults] | product(fleet_apps) | map('combine') | list }}"
+# [app, workspace] pairs, one per GitRepo, and their workspace/name keys.
+fleet_apps_pairs: "{{ fleet_apps_specs | subelements('workspaces') }}"
+fleet_apps_wanted: >-
+  {{ fleet_apps_pairs | map(attribute='1') | zip(fleet_apps_pairs | map(attribute='0.name')) | map('join', '/')
+     | list }}

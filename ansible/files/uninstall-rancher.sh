@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Managed by Ansible (rancher-platform)
+# Run by ./manage.sh uninstall-rancher (rancher-platform)
 set -euo pipefail
-export KUBECONFIG="${KUBECONFIG:-{{ rke2_kubeconfig }}}"
-PATH="{{ bin_dir }}:$PATH"
+# The play sets KUBECONFIG and PATH.
 
 echo "--- Removing Rancher and cert-manager (RKE2 stays) ---"
 # Stop Rancher first so it does not reinstall the apps removed below.

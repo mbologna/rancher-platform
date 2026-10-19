@@ -1,7 +1,7 @@
 ---
-# Fleet GitRepos that deploy fleet_apps to every cluster. Each app gets one GitRepo per workspace, because a
-# GitRepo only targets clusters in its own workspace. GitRepos this role creates carry fleet_apps_label;
-# prune touches nothing else.
+# Fleet GitRepos for fleet_apps. Each app gets one GitRepo per workspace (by default fleet-local and
+# fleet-default), because a GitRepo only targets clusters in its own workspace. GitRepos this role
+# creates carry fleet_apps_label; prune touches nothing else.
 - name: Check the Fleet apps
   ansible.builtin.assert:
     that:
@@ -11,9 +11,10 @@
       - fleet_apps_names | unique | length == fleet_apps_names | length
       - fleet_apps | map(attribute='repo', default='') | reject | list | length == 0
       - fleet_apps | map(attribute='paths', default='') | reject | list | length == 0
+      - fleet_apps_specs | map(attribute='workspaces') | flatten | difference(fleet_apps_workspaces) | length == 0
     fail_msg: >-
-      fleet_apps must be a list of {name, repo, paths, branch (optional)} with unique lowercase DNS-label
-      names; got {{ fleet_apps }}.
+      fleet_apps must be a list of {name, repo, paths, branch, workspaces, targets, keep_resources} with
+      unique lowercase DNS-label names and workspaces from {{ fleet_apps_workspaces }}; got {{ fleet_apps }}.
 
 # The GitRepo CRD appears once Rancher has deployed Fleet.
 - name: Register the Fleet apps
@@ -26,9 +27,10 @@
         namespace: "{{ item[1] }}"
         labels: "{{ {fleet_apps_label: 'true'} }}"
       spec: >-
-        {{ {'repo': item[0].repo, 'paths': item[0].paths, 'targets': [{'clusterSelector': {}}]}
-           | combine({'branch': item[0].branch} if item[0].branch is defined else {}) }}
-  loop: "{{ fleet_apps | product(fleet_apps_workspaces) | list }}"
+        {{ {'repo': item[0].repo, 'paths': item[0].paths, 'targets': item[0].targets}
+           | combine({'branch': item[0].branch} if item[0].branch is defined else {})
+           | combine({'keepResources': true} if item[0].keep_resources | bool else {}) }}
+  loop: "{{ fleet_apps_pairs }}"
   loop_control:
     label: "{{ item[1] }}/{{ item[0].name }}"
   register: fleet_apps_registered
@@ -42,7 +44,7 @@
     kind: GitRepo
     name: "{{ item[0].name }}"
     namespace: "{{ item[1] }}"
-  loop: "{{ fleet_apps | product(fleet_apps_workspaces) | list }}"
+  loop: "{{ fleet_apps_pairs }}"
   loop_control:
     label: "{{ item[1] }}/{{ item[0].name }}"
   register: fleet_apps_status
@@ -70,8 +72,7 @@
     name: "{{ item.metadata.name }}"
     namespace: "{{ item.metadata.namespace }}"
     state: absent
-  loop: >-
-    {{ fleet_apps_existing.results | map(attribute='resources', default=[]) | flatten
-       | rejectattr('metadata.name', 'in', fleet_apps_names) | list }}
+  loop: "{{ fleet_apps_existing.results | map(attribute='resources', default=[]) | flatten }}"
   loop_control:
     label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
+  when: item.metadata.namespace ~ '/' ~ item.metadata.name not in fleet_apps_wanted

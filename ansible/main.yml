@@ -100,15 +100,14 @@
       vars:
         ansible_python_interpreter: "{{ k8s_python }}"
       tags: [capi_providers]
-    - role: fleet_gitrepo
-      when: fleet_gitrepo_enabled | bool
-      vars:
-        ansible_python_interpreter: "{{ k8s_python }}"
-      tags: [fleet]
-    - role: dev_tools
-      tags: [dev_tools]
 
   post_tasks:
+    # Runs only with --tags uninstall (./manage.sh uninstall-rancher).
+    - name: Remove Rancher and cert-manager (RKE2 and the downstream clusters stay)
+      ansible.builtin.script: files/uninstall-rancher.sh
+      changed_when: true
+      tags: [never, uninstall]
+
     - name: Write the local kubeconfig
       ansible.builtin.include_tasks:
         file: tasks/kubeconfig.yml
@@ -117,5 +116,8 @@
       tags: [always]
 
     - name: Show summary
-      ansible.builtin.include_tasks: tasks/summary.yml
+      ansible.builtin.include_tasks:
+        file: tasks/summary.yml
+        apply:
+          tags: [always]
       tags: [always]

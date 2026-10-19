@@ -111,8 +111,26 @@ downstream_clusters:
 
 `deploy` creates one Fleet GitRepo per app in `fleet-local` (the Rancher cluster) and in
 `fleet-default` (the imported clusters, including any created with Cluster API), and waits until
-Fleet reports them ready. Removing an entry removes that app from every cluster. Your own apps
-take the same form: `{name, repo, paths, branch}`, where `branch` defaults to `master`.
+Fleet reports them ready. Removing an entry removes that app from every cluster.
+
+Your own apps take the same form, `{name, repo, paths}`, with optional `branch` (default
+`master`), `workspaces`, `targets` and `keep_resources`. This one goes only to clusters labelled
+`env: dev`:
+
+```yaml
+fleet_apps:
+  - name: my-app
+    repo: https://github.com/me/my-app
+    branch: main
+    paths: [deploy]
+    workspaces: [fleet-default]
+    targets: [{clusterSelector: {matchLabels: {env: dev}}}]
+```
+
+For [Rancher Turtles](https://turtles.docs.rancher.com/), set `capi_providers_enabled: true` and
+add `fleet_apps_capi_templates`, the ClusterClasses and example clusters from
+[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters):
+`fleet_apps: "{{ fleet_apps_examples + fleet_apps_capi_templates }}"`.
 
 `guestbook-multi` reads the cluster label `env`: `dev` drops the Redis replicas and `test` runs
 three frontends. `env: prod` asks for a `LoadBalancer` Service, which kind clusters cannot
@@ -147,7 +165,8 @@ merge once the E2E workflow has deployed them; minor and major ones wait for rev
 `/var/lib/rancher/rke2/server/db/snapshots`. Set `rke2_etcd_s3_bucket` to keep copies off the
 host. Restore with the [RKE2 procedure](https://docs.rke2.io/datastore/backup_restore).
 
-**Check.** `./manage.sh status` shows nodes, pods and Rancher.
+**Check.** `./manage.sh status` shows the nodes, the Rancher clusters, the Fleet apps and any
+pod that is not running.
 
 ## 6. Tear it down
 
@@ -170,7 +189,7 @@ Run from `ansible/`. Extra arguments go to `ansible-playbook`.
 |---|---|
 | `./manage.sh install` | Install the pinned Ansible collections. |
 | `./manage.sh deploy` | Install or upgrade everything to the pinned versions. |
-| `./manage.sh status` | Show node, pod and Rancher status. |
+| `./manage.sh status` | Show nodes, Rancher clusters, Fleet apps and pods that are not running. |
 | `./manage.sh kubeconfig` | Write a new kubeconfig and revoke the old one. |
 | `./manage.sh uninstall-rancher` | Remove Rancher and cert-manager. |
 | `./manage.sh reset` | **Delete all cluster and Docker data** on the host, including RKE2, K3s, kind and k3d installed by anything, then deploy. |
@@ -192,12 +211,11 @@ Settings and pinned versions live in
 | `rke2_etcd_snapshot_schedule` | `0 */12 * * *` | etcd snapshot schedule; `rke2_etcd_snapshot_retention` keeps 5. |
 | `rke2_etcd_s3_bucket` | | Also upload snapshots to S3. |
 | `capi_providers_enabled` | `false` | Install Cluster API providers for [Rancher Turtles](https://turtles.docs.rancher.com/); AWS keys in `secrets.yml` enable CAPA. |
-| `fleet_gitrepo_enabled` | `false` | Register cluster definitions from [rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters). |
 
 ### What deploy changes on the host
 
 It disables firewalld and ufw, sets SELinux to permissive, installs Docker, a Python virtualenv,
-RKE2, `kubectl`, `helm` and helper scripts (`cluster-status`, `rancher-logs`), writes kernel
+RKE2, `kubectl` and `helm`, writes kernel
 settings and adds `rancher_hostname` to `/etc/hosts`. Only `reset` removes existing workloads.
 
 ## Development
