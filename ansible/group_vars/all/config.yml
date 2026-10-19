@@ -24,7 +24,18 @@ cert_manager_version: "v1.21.2"
 # Rancher installs Turtles itself (2.15.2: Turtles v0.27.2, core CAPI v1.13.3).
 # renovate: datasource=helm depName=rancher registryUrl=https://releases.rancher.com/server-charts/stable
 rancher_version: "2.15.2"
-rancher_chart_repo: https://releases.rancher.com/server-charts/stable
+# Chart channel: stable, latest (adds release candidates such as 2.15.2-rc1) or alpha.
+rancher_chart_channel: stable
+rancher_chart_repo: https://releases.rancher.com/server-charts/{{ rancher_chart_channel }}
+# Development builds: rancher_image_tag: head (the next minor) or v2.15-head runs that build on the
+# chart above. Moving tags (head, *-head) are pulled again on every deploy when the registry has a
+# newer image. rancher_image replaces rancher/rancher, for example with your own build.
+rancher_image: ""
+rancher_image_tag: ""
+# Merged last into the chart values, e.g. {extraEnv: [{name: CATTLE_FEATURES, value: "..."}]}.
+rancher_extra_values: {}
+# Rancher settings (management.cattle.io Setting name: value), e.g. ui-dashboard-index for UI work.
+rancher_settings: {}
 # Name Rancher answers on. Set it per host in the inventory to override the default: the host's
 # address when it is a DNS name (erlara.example.com), otherwise rancher.<ip>.sslip.io.
 rancher_hostname: >-

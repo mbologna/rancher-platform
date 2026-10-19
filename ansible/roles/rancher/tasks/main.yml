@@ -9,7 +9,45 @@
   delay: 10
   changed_when: false
 
-- name: Install or upgrade Rancher {{ rancher_version }}
+- name: Read the installed Rancher release
+  kubernetes.core.helm_info:
+    name: rancher
+    release_namespace: cattle-system
+    binary_path: "{{ helm_bin }}"
+  register: rancher_release
+
+- name: Read the running Rancher image
+  ansible.builtin.command: >-
+    {{ kubectl_bin }} -n cattle-system get deployment rancher --ignore-not-found
+    -o jsonpath={.spec.template.spec.containers[0].image}
+  register: rancher_installed_image
+  changed_when: false
+
+- name: Note the installed Rancher build
+  ansible.builtin.set_fact:
+    rancher_installed_version: "{{ rancher_release.status.chart | default('') | regex_replace('^rancher-', '') }}"
+
+- name: Refuse to downgrade Rancher
+  ansible.builtin.assert:
+    that: >-
+      rancher_installed_version == ''
+      or rancher_version is version(rancher_installed_version, '>=', version_type='semver')
+    fail_msg: >-
+      Rancher {{ rancher_installed_version }} is installed and cannot be downgraded to {{ rancher_version }}.
+      Restore a snapshot taken before the upgrade instead (./manage.sh snapshots, ./manage.sh restore <name>).
+    quiet: true
+
+- name: Snapshot etcd before changing the Rancher build
+  ansible.builtin.command: >-
+    {{ rke2_bin }} etcd-snapshot save --name
+    {{ ('pre-upgrade-' ~ rancher_installed_image.stdout.split(':') | last ~ '-to-' ~ rancher_target) | lower
+       | regex_replace('[^a-z0-9.-]', '-') | truncate(50, true, '') }}
+  changed_when: true
+  when:
+    - rancher_installed_image.stdout | length > 0
+    - rancher_installed_image.stdout != rancher_image_repo ~ ':' ~ rancher_target
+
+- name: Install or upgrade Rancher to {{ rancher_target }}
   kubernetes.core.helm:
     name: rancher
     chart_ref: rancher
@@ -18,24 +56,7 @@
     release_namespace: cattle-system
     create_namespace: true
     binary_path: "{{ helm_bin }}"
-    values:
-      hostname: "{{ rancher_hostname }}"
-      replicas: 1
-      bootstrapPassword: "{{ rancher_bootstrap_password }}"
-      ingress:
-        # Explicit, so switching rke2_ingress_controller moves the existing Ingress too.
-        ingressClassName: "{{ rancher_ingress_class[rke2_ingress_controller] }}"
-        tls:
-          source: "{{ rancher_tls_source }}"
-      letsEncrypt:
-        email: "{{ rancher_letsencrypt_email }}"
-        environment: "{{ rancher_letsencrypt_environment }}"
-        ingress:
-          class: "{{ rancher_ingress_class[rke2_ingress_controller] }}"
-      networkExposure: # required by Rancher v2.14+
-        type: ingress
-      rancherNamespaces:
-        enabled: false
+    values: "{{ rancher_values }}"
     wait: true
     timeout: 600s
 
@@ -69,6 +90,24 @@
     definition:
       value: https://{{ rancher_hostname }}
   when: rancher_server_url.resources[0].value | default('') != 'https://' ~ rancher_hostname
+
+- name: Apply Rancher settings
+  kubernetes.core.k8s:
+    definition:
+      apiVersion: management.cattle.io/v3
+      kind: Setting
+      metadata:
+        name: "{{ item.key }}"
+      value: "{{ item.value | string }}"
+  loop: "{{ rancher_settings | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+# A moving tag (head) keeps its name while the image changes; restart Rancher when the registry has a
+# newer digest than the running pod, or always for registries other than Docker Hub.
+- name: Pull a newer image for tag {{ rancher_image_tag }}
+  ansible.builtin.include_tasks: refresh.yml
+  when: rancher_image_moving
 
 # Both TLS sources use an Issuer named "rancher", so switching source keeps the old certificate.
 # Compare the signing CA with the configured source and re-issue on mismatch.
