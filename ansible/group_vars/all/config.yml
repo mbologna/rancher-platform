@@ -62,6 +62,27 @@ install_docker: true
 # the host already runs Docker.
 capd_enabled: "{{ install_docker }}"
 
+# Registry cache: one pull-through proxy (Docker's registry image) per upstream registry on this host,
+# with the cache in a Docker volume rp-registry-<registry>. RKE2 and the kind clusters pull through it and
+# fall back to the upstream when it is down, so resets and new clusters reuse cached images. Needs Docker.
+# For Docker Hub's higher pull limit, set registry_cache_dockerhub_username/password in secrets.yml.
+registry_cache_enabled: false
+registry_cache_upstreams:
+  - {registry: docker.io, url: "https://registry-1.docker.io", port: 5001}
+  - {registry: ghcr.io, url: "https://ghcr.io", port: 5002}
+  - {registry: quay.io, url: "https://quay.io", port: 5003}
+  - {registry: registry.k8s.io, url: "https://registry.k8s.io", port: 5004}
+# Address the caches listen on; RKE2 and the kind nodes must reach it.
+registry_cache_address: "{{ ansible_facts.default_ipv4.address }}"
+# renovate: datasource=docker depName=registry
+registry_cache_image_version: "3.1.2"
+# Registry name -> mirror URL, empty when the cache is off.
+registry_cache_mirrors: >-
+  {{ dict(registry_cache_upstreams | map(attribute='registry')
+          | zip(registry_cache_upstreams | map(attribute='port') | map('string')
+                | map('regex_replace', '^', 'http://' ~ registry_cache_address ~ ':')))
+     if registry_cache_enabled | bool else {} }}
+
 # Leap 16 / SLE 16 enforce SELinux by default; RKE2's tarball install does not ship the
 # rke2-selinux policy. Set to "" to leave the host's SELinux mode untouched.
 selinux_mode: permissive

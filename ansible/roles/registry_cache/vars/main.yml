@@ -1,0 +1,8 @@
+---
+registry_cache_credentials: >-
+  {{ {'REGISTRY_PROXY_USERNAME': registry_cache_dockerhub_username,
+      'REGISTRY_PROXY_PASSWORD': registry_cache_dockerhub_password}
+     if registry_cache_dockerhub_username | default('') | length > 0 else {} }}
+registry_cache_names: >-
+  {{ (registry_cache_upstreams if registry_cache_enabled | bool else [])
+     | map(attribute='registry') | map('replace', '.', '-') | map('regex_replace', '^', 'rp-registry-') | list }}

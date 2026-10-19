@@ -220,6 +220,14 @@ Fleet and everything on the Rancher cluster. The kind clusters keep running and 
 then redeploys the apps it had at snapshot time, but other workloads inside them are not
 restored.
 
+**Cache images.** Repeated resets and new kind clusters pull the same images again, and Docker
+Hub limits anonymous pulls. `registry_cache_enabled: true` runs a pull-through cache on the host
+for docker.io, ghcr.io, quay.io and registry.k8s.io, on ports 5001–5004. RKE2 and the kind clusters
+pull through it and go to the upstream registry when it is down. The images stay in Docker volumes
+`rp-registry-*` when the cache is turned off; `reset` deletes them. Set
+`registry_cache_dockerhub_username` and `registry_cache_dockerhub_password` in `secrets.yml` to
+pull from Docker Hub as that account.
+
 **Check.** `./manage.sh status` shows the nodes, the Rancher clusters, the Fleet apps and any
 pod that is not running.
 
@@ -269,6 +277,7 @@ Settings and pinned versions live in
 | `fleet_apps` | `[]` | Git repositories Fleet deploys to every cluster; `fleet_apps_examples` holds four samples. |
 | `helm_charts` | `[]` | Helm charts for the Rancher cluster; presets `helm_charts_monitoring` and `helm_charts_backup`. |
 | `downstream_metrics_server` | `false` | Install metrics-server in each kind cluster. |
+| `registry_cache_enabled` | `false` | Cache container images on the host for RKE2 and the kind clusters. |
 | `rke2_ingress_controller` | `traefik` | `traefik` or `ingress-nginx`. |
 | `selinux_mode` | `permissive` | `""` leaves SELinux alone. |
 | `install_docker` | `true` | Install Docker on the host. |

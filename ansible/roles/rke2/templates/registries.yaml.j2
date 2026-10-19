@@ -1,0 +1,6 @@
+# Written by rancher-platform from registry_cache_mirrors; removed when the cache is off.
+mirrors:
+{% for registry, mirror in registry_cache_mirrors.items() %}
+  {{ registry }}:
+    endpoint: ["{{ mirror }}"]
+{% endfor %}

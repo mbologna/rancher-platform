@@ -93,6 +93,28 @@
   no_log: "{{ rke2_etcd_s3_secret_key is defined }}"
   notify: Restart rke2
 
+- name: Point RKE2 at the registry cache
+  ansible.builtin.template:
+    src: registries.yaml.j2
+    dest: /etc/rancher/rke2/registries.yaml
+    mode: "0600"
+  when: registry_cache_mirrors | length > 0
+  notify: Restart rke2
+
+- name: Check for a registries.yaml written by rancher-platform
+  ansible.builtin.command: grep -q '^# Written by rancher-platform' /etc/rancher/rke2/registries.yaml
+  register: rke2_registries_ours
+  changed_when: false
+  failed_when: false
+  when: registry_cache_mirrors | length == 0
+
+- name: Remove the registry cache from RKE2
+  ansible.builtin.file:
+    path: /etc/rancher/rke2/registries.yaml
+    state: absent
+  when: registry_cache_mirrors | length == 0 and rke2_registries_ours.rc == 0
+  notify: Restart rke2
+
 - name: Apply pending RKE2 (re)starts (first start can take several minutes)
   ansible.builtin.meta: flush_handlers
 

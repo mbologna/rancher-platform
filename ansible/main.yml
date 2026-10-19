@@ -77,6 +77,8 @@
       tags: [base]
     - role: helm
       tags: [helm]
+    - role: registry_cache
+      tags: [registry_cache]
     - role: rke2
       tags: [rke2]
     - role: cert_manager
