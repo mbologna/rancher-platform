@@ -238,3 +238,19 @@
       until: downstream_clusters_ready.resources[0].status.ready | default(false)
       retries: 60
       delay: 10
+
+- name: Install or remove metrics-server in rp-{{ downstream_clusters_name }}
+  kubernetes.core.helm:
+    name: metrics-server
+    chart_ref: metrics-server
+    chart_repo_url: https://kubernetes-sigs.github.io/metrics-server
+    chart_version: "{{ metrics_server_version }}"
+    release_namespace: kube-system
+    binary_path: "{{ helm_bin }}"
+    # kind's kubelets serve self-signed certificates.
+    values:
+      args: [--kubelet-insecure-tls]
+    state: "{{ 'present' if downstream_metrics_server | bool else 'absent' }}"
+    wait: true
+  environment:
+    K8S_AUTH_KUBECONFIG: "{{ downstream_clusters_kubeconfig }}"

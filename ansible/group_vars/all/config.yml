@@ -90,6 +90,10 @@ kind_version: "v0.33.0"
 # and v1.36.4.
 # renovate: datasource=docker depName=kindest/node
 kind_node_version: "v1.36.4"
+# metrics-server in each kind cluster, so kubectl top and HorizontalPodAutoscalers work.
+downstream_metrics_server: false
+# renovate: datasource=helm depName=metrics-server registryUrl=https://kubernetes-sigs.github.io/metrics-server
+metrics_server_version: "3.14.0"
 
 # Fleet apps: Git repositories that Fleet deploys to the Rancher cluster (workspace fleet-local) and the
 # imported ones (fleet-default). Each entry is {name, repo, paths} plus optional
@@ -135,6 +139,36 @@ fleet_apps_capi_templates:
     paths: [clusterclasses, identities, clusters]
     workspaces: [fleet-local]
     keep_resources: true
+
+# Helm charts on the Rancher cluster: {name, chart, repo, version, namespace, values}; chart defaults
+# to name. Deploy uninstalls charts it installed that are no longer listed. Presets below; combine
+# with +, e.g. helm_charts: "{{ helm_charts_monitoring + helm_charts_backup }}".
+helm_charts: []
+# Rancher's chart line follows its minor: 110.x is for Rancher 2.15.
+# renovate: datasource=helm depName=rancher-monitoring registryUrl=https://charts.rancher.io
+rancher_monitoring_version: "110.0.2+up80.9.1-rancher.22"
+# renovate: datasource=helm depName=rancher-backup registryUrl=https://charts.rancher.io
+rancher_backup_version: "110.0.2+up11.0.3"
+# Prometheus, Grafana and Alertmanager, shown under Monitoring in the Rancher UI. Needs about 2 GB RAM.
+helm_charts_monitoring:
+  - {name: rancher-monitoring-crd, repo: "https://charts.rancher.io", version: "{{ rancher_monitoring_version }}",
+     namespace: cattle-monitoring-system}
+  - name: rancher-monitoring
+    repo: https://charts.rancher.io
+    version: "{{ rancher_monitoring_version }}"
+    namespace: cattle-monitoring-system
+    values:
+      global: {cattle: {clusterId: local, clusterName: local}}
+      rke2ControllerManager: {enabled: true}
+      rke2Scheduler: {enabled: true}
+      rke2Proxy: {enabled: true}
+      rke2Etcd: {enabled: true}
+# The Rancher Backups operator. Backups need a storage location: S3 or a Backup's own storage.
+helm_charts_backup:
+  - {name: rancher-backup-crd, repo: "https://charts.rancher.io", version: "{{ rancher_backup_version }}",
+     namespace: cattle-resources-system}
+  - {name: rancher-backup, repo: "https://charts.rancher.io", version: "{{ rancher_backup_version }}",
+     namespace: cattle-resources-system}
 
 # ── Paths (defined once, used everywhere) ────────────────────────────────────
 rancher_dev_dir: /root/.rancher-dev
