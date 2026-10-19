@@ -14,6 +14,14 @@
     --kubeconfig {{ downstream_clusters_kubeconfig }}
   changed_when: false
 
+- name: Point the kind cluster at the registry cache rp-{{ downstream_clusters_name }}
+  ansible.builtin.script:
+    cmd: >-
+      kind-registry-mirrors.sh rp-{{ downstream_clusters_name }}-control-plane
+      {{ registry_cache_mirrors.items() | map('join', '=') | join(' ') }}
+  register: downstream_clusters_mirrors
+  changed_when: "'changed' in downstream_clusters_mirrors.stdout"
+
 - name: Resolve the Rancher hostname inside rp-{{ downstream_clusters_name }}
   kubernetes.core.k8s:
     api_version: v1

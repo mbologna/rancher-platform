@@ -28,14 +28,15 @@
     done
   changed_when: true
 
-# The CLIs may be missing or on another PATH, so also remove the node containers by label.
-- name: Delete Kind and K3d clusters
+# The CLIs may be missing or on another PATH, so also remove the node containers by label,
+# along with the registry caches.
+- name: Delete Kind and K3d clusters and the registry caches
   ansible.builtin.shell: |
     set -o pipefail
     command -v kind >/dev/null && kind get clusters | xargs -r -n1 kind delete cluster --name || true
     command -v k3d >/dev/null && k3d cluster delete --all || true
     if command -v docker >/dev/null; then
-      for label in io.x-k8s.kind.cluster app=k3d; do
+      for label in io.x-k8s.kind.cluster app=k3d rancher-platform.registry-cache; do
         docker ps -aq --filter "label=$label" | xargs -r docker rm -f || true
       done
     fi
@@ -43,8 +44,12 @@
     executable: /bin/bash
   changed_when: true
 
+# docker system prune --volumes skips named volumes such as the registry caches.
 - name: Prune all Docker containers, images, volumes and networks
-  ansible.builtin.shell: command -v docker >/dev/null && docker system prune -af --volumes || true
+  ansible.builtin.shell: |
+    command -v docker >/dev/null || exit 0
+    docker system prune -af --volumes || true
+    docker volume prune -af || true
   changed_when: true
 
 - name: Remove stale CNI/KUBE iptables chains

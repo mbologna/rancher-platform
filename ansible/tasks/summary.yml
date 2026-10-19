@@ -57,3 +57,6 @@
       - >-
         Helm charts: {{ helm_charts | map(attribute='name') | join(', ') if helm_charts
                         else 'none (set helm_charts to install charts such as helm_charts_monitoring)' }}
+      - >-
+        Registry cache: {{ registry_cache_mirrors.items() | map('join', ' → ') | join(', ')
+                           if registry_cache_mirrors else 'off (set registry_cache_enabled to cache images)' }}
