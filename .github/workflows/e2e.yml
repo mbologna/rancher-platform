@@ -1,6 +1,7 @@
 ---
 # Deploys RKE2, cert-manager, Rancher and one imported kind cluster on the runner itself, then
 # checks that a second deploy changes nothing and that Rancher answers. Nothing leaves the runner.
+# The weekly run uses Rancher's head build; a failure there is mailed to the workflow owner.
 name: E2E
 
 on:
@@ -8,7 +9,14 @@ on:
     paths:
       - ansible/**
       - .github/workflows/e2e.yml
+  schedule:
+    - cron: "17 4 * * 1"
   workflow_dispatch:
+    inputs:
+      rancher_image_tag:
+        description: Rancher image tag, e.g. head or v2.15-head (empty uses the pinned release)
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -21,6 +29,8 @@ jobs:
   deploy:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      REQUESTED_TAG: ${{ github.event_name == 'schedule' && 'head' || inputs.rancher_image_tag }}
     defaults:
       run:
         working-directory: ansible
@@ -39,6 +49,18 @@ jobs:
           ./manage.sh install
 
       # The runner is the target host. Docker is already installed, so the playbook leaves it alone.
+      # A moving tag such as head can be rebuilt between the two deploys; pin it to the commit tag
+      # that has the same digest so the rerun compares the same image.
+      - name: Resolve the Rancher image tag
+        if: env.REQUESTED_TAG != ''
+        run: |
+          api=https://hub.docker.com/v2/repositories/rancher/rancher/tags
+          digest=$(curl -fsS "${api}/${REQUESTED_TAG}" | jq -r .digest)
+          tag=$(curl -fsS "${api}?name=-head&page_size=100" |
+            jq -r --arg d "${digest}" '[.results[] | select(.digest == $d)
+              | .name | select(test("^v[0-9.]+-[0-9a-f]{40}-head$"))][0] // empty')
+          echo "RANCHER_IMAGE_TAG=${tag:-${REQUESTED_TAG}}" | tee -a "${GITHUB_ENV}"
+
       - name: Write the inventory and secrets
         run: |
           ip=$(hostname -I | awk '{print $1}')
@@ -50,6 +72,7 @@ jobs:
                 ansible_host: ${ip}
                 ansible_user: ${USER}
                 install_docker: false
+                rancher_image_tag: "${RANCHER_IMAGE_TAG}"
                 downstream_clusters: [e2e]
                 registry_cache_enabled: true
                 fleet_apps:
