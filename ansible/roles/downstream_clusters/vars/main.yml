@@ -1,5 +1,6 @@
 ---
 downstream_clusters_label: rancher-platform.mbologna.github.io/downstream
+downstream_clusters_labels_annotation: rancher-platform.mbologna.github.io/labels
 downstream_clusters_kubeconfig: "{{ rancher_dev_dir }}/kind-{{ downstream_clusters_name }}.yaml"
 # downstream_clusters entries are names or {name, kubernetes_version}; these are the normalised forms.
 downstream_clusters_specs: >-

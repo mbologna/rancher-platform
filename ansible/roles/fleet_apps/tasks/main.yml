@@ -12,9 +12,12 @@
       - fleet_apps | map(attribute='repo', default='') | reject | list | length == 0
       - fleet_apps | map(attribute='paths', default='') | reject | list | length == 0
       - fleet_apps_specs | map(attribute='workspaces') | flatten | difference(fleet_apps_workspaces) | length == 0
+      - fleet_apps_ingresses | map(attribute='ingress.service', default='') | reject | list | length == 0
+      - fleet_apps_ingresses | map(attribute='ingress.port', default='') | reject | list | length == 0
     fail_msg: >-
-      fleet_apps must be a list of {name, repo, paths, branch, workspaces, targets, keep_resources} with
-      unique lowercase DNS-label names and workspaces from {{ fleet_apps_workspaces }}; got {{ fleet_apps }}.
+      fleet_apps must be a list of {name, repo, paths, branch, workspaces, targets, keep_resources, ingress} with
+      unique lowercase DNS-label names, workspaces from {{ fleet_apps_workspaces }} and ingress as
+      {service, port, namespace}; got {{ fleet_apps }}.
 
 # The GitRepo CRD appears once Rancher has deployed Fleet.
 - name: Register the Fleet apps
@@ -76,3 +79,49 @@
   loop_control:
     label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
   when: item.metadata.namespace ~ '/' ~ item.metadata.name not in fleet_apps_wanted
+
+# Ingresses on the Rancher cluster; the namespace exists once Fleet has deployed the app there.
+- name: Expose the Fleet apps on the Rancher cluster
+  kubernetes.core.k8s:
+    definition:
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: "{{ item.name }}"
+        namespace: "{{ item.ingress.namespace | default('default') }}"
+        labels: "{{ {fleet_apps_label: 'true'} }}"
+      spec:
+        ingressClassName: "{{ rke2_ingress_class }}"
+        rules:
+          - host: "{{ item.name }}.{{ fleet_apps_ingress_domain }}"
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: "{{ item.ingress.service }}"
+                      port:
+                        number: "{{ item.ingress.port | int }}"
+  loop: "{{ fleet_apps_ingresses }}"
+  loop_control:
+    label: "{{ item.name }}.{{ fleet_apps_ingress_domain }}"
+
+- name: Find app Ingresses that are no longer listed
+  kubernetes.core.k8s_info:
+    api_version: networking.k8s.io/v1
+    kind: Ingress
+    label_selectors: ["{{ fleet_apps_label }}=true"]
+  register: fleet_apps_ingresses_existing
+
+- name: Remove unlisted app Ingresses
+  kubernetes.core.k8s:
+    api_version: networking.k8s.io/v1
+    kind: Ingress
+    name: "{{ item.metadata.name }}"
+    namespace: "{{ item.metadata.namespace }}"
+    state: absent
+  loop: "{{ fleet_apps_ingresses_existing.resources }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
+  when: item.metadata.namespace ~ '/' ~ item.metadata.name not in fleet_apps_ingresses_wanted

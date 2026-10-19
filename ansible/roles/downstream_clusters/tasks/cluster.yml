@@ -43,6 +43,19 @@
     name: "{{ downstream_clusters_name }}"
   register: downstream_clusters_existing
 
+# The annotation records the label keys this role set, so keys dropped from the entry can be removed
+# (a null value deletes a label in a merge patch).
+- name: Find labels removed from {{ downstream_clusters_name }}
+  ansible.builtin.set_fact:
+    downstream_clusters_labels: >-
+      {{ dict(downstream_clusters_stale | zip_longest([], fillvalue=none))
+         | combine(downstream_clusters_spec.labels | default({})) }}
+  vars:
+    downstream_clusters_stale: >-
+      {{ (downstream_clusters_existing.resources[0].metadata.annotations[downstream_clusters_labels_annotation]
+          | default('') if downstream_clusters_existing.resources else '').split(',') | select
+         | difference(downstream_clusters_spec.labels | default({}) | list) }}
+
 # The RKE2 admin is not a Rancher user, so a new cluster gets no creator. Rancher's webhook rejects this
 # annotation on a cluster that already has one.
 - name: Register the Rancher cluster {{ downstream_clusters_name }}
@@ -53,10 +66,10 @@
       metadata:
         name: "{{ downstream_clusters_name }}"
         namespace: fleet-default
-        labels: "{{ downstream_clusters_spec.labels | default({}) | combine({downstream_clusters_label: 'true'}) }}"
+        labels: "{{ downstream_clusters_labels | combine({downstream_clusters_label: 'true'}) }}"
         annotations: >-
-          {{ {} if downstream_clusters_existing.resources
-             else {'field.cattle.io/no-creator-rbac': 'true'} }}
+          {{ {downstream_clusters_labels_annotation: downstream_clusters_spec.labels | default({}) | join(',')}
+             | combine({} if downstream_clusters_existing.resources else {'field.cattle.io/no-creator-rbac': 'true'}) }}
       spec: {}
 
 - name: Wait for the registration manifest of {{ downstream_clusters_name }}
@@ -75,7 +88,7 @@
     downstream_clusters_id: "{{ downstream_clusters_cluster.resources[0].status.clusterName }}"
 
 # Rancher copies provisioning labels to the management cluster only on creation, and Fleet reads them
-# from the management cluster. Labels removed from the entry stay until the cluster is recreated.
+# from the management cluster.
 - name: Set the Fleet labels of {{ downstream_clusters_name }}
   kubernetes.core.k8s:
     api_version: management.cattle.io/v3
@@ -84,8 +97,8 @@
     state: patched
     definition:
       metadata:
-        labels: "{{ downstream_clusters_spec.labels }}"
-  when: downstream_clusters_spec.labels | default({}) | length > 0
+        labels: "{{ downstream_clusters_labels }}"
+  when: downstream_clusters_labels | length > 0
 
 # provisioning status.ready and the Connected condition both survive uninstall-rancher and a hostname
 # change, so neither shows that an agent still reaches Rancher. The agent's CA checksum and server do.

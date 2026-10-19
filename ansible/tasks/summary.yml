@@ -11,10 +11,35 @@
   changed_when: false
   failed_when: false
 
+- name: Read the Rancher IDs of the downstream clusters
+  ansible.builtin.command: >-
+    {{ kubectl_bin }} -n fleet-default get clusters.provisioning.cattle.io
+    -o jsonpath='{range .items[*]}{.metadata.name}={.status.clusterName}{"\n"}{end}'
+  register: summary_cluster_ids
+  changed_when: false
+  failed_when: false
+
+# Each app's Ingress on the Rancher cluster, then Rancher's service proxy to the same Service on each
+# downstream cluster (log in to the UI first).
+- name: List the app URLs
+  ansible.builtin.set_fact:
+    summary_app_urls: >-
+      {{ summary_app_urls | default([])
+         + ['App ' ~ item[0].name ~ ':  http://' ~ item[0].name ~ '.' ~ fleet_apps_ingress_domain] if not item[1]
+         else summary_app_urls + ['  on ' ~ item[1].split('=') | first ~ ':  https://' ~ rancher_hostname
+              ~ '/k8s/clusters/' ~ item[1].split('=') | last ~ '/api/v1/namespaces/'
+              ~ item[0].ingress.namespace | default('default') ~ '/services/http:' ~ item[0].ingress.service
+              ~ ':' ~ item[0].ingress.port ~ '/proxy/'] }}
+  loop: >-
+    {{ fleet_apps | selectattr('ingress', 'defined')
+       | product([''] + summary_cluster_ids.stdout_lines | default([]) | select('search', '=.') | list) | list }}
+  loop_control:
+    label: "{{ item[0].name }} {{ item[1] }}"
+
 - name: Show summary
   ansible.builtin.debug:
     msg: >-
-      {{ summary_lines
+      {{ summary_lines + summary_app_urls | default([]) + ['']
          + summary_status.results | map(attribute='stdout_lines') | map('default', []) | zip_longest([], fillvalue=[''])
            | flatten | list }}
   vars:
@@ -29,4 +54,3 @@
       - >-
         Fleet apps:  {{ fleet_apps | map(attribute='name') | join(', ') if fleet_apps
                         else 'none (set fleet_apps to deploy apps to every cluster)' }}
-      - ""

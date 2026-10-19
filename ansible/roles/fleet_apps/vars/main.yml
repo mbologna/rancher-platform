@@ -13,3 +13,10 @@ fleet_apps_pairs: "{{ fleet_apps_specs | subelements('workspaces') }}"
 fleet_apps_wanted: >-
   {{ fleet_apps_pairs | map(attribute='1') | zip(fleet_apps_pairs | map(attribute='0.name')) | map('join', '/')
      | list }}
+# Apps with an Ingress on the Rancher cluster (fleet-local), and their namespace/name keys.
+fleet_apps_ingresses: >-
+  {{ fleet_apps_specs | selectattr('ingress', 'defined') | selectattr('workspaces', 'contains', 'fleet-local')
+     | list }}
+fleet_apps_ingresses_wanted: >-
+  {{ fleet_apps_ingresses | map(attribute='ingress.namespace', default='default')
+     | zip(fleet_apps_ingresses | map(attribute='name')) | map('join', '/') | list }}

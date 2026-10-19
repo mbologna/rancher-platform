@@ -52,7 +52,8 @@ jobs:
                 install_docker: false
                 downstream_clusters: [e2e]
                 fleet_apps:
-                  - {name: podinfo, repo: "https://github.com/stefanprodan/podinfo", paths: [charts/podinfo]}
+                  - {name: podinfo, repo: "https://github.com/stefanprodan/podinfo", paths: [charts/podinfo],
+                     ingress: {service: podinfo-charts-podinfo, port: 9898}}
           INVENTORY
           password=$(openssl rand -hex 16)
           echo "::add-mask::${password}"
@@ -84,6 +85,8 @@ jobs:
             sudo /usr/local/bin/kubectl --kubeconfig "${kubeconfig}" \
               rollout status deployment/podinfo-charts-podinfo -n default --timeout=120s
           done
+          curl -fsS --retry 10 --retry-delay 5 --retry-all-errors \
+            "http://podinfo.${RANCHER_HOSTNAME#rancher.}" | grep -q '"hostname"'
 
       - name: Show cluster state
         if: failure()
