@@ -278,7 +278,6 @@ Settings and pinned versions live in
 | `helm_charts` | `[]` | Helm charts for the Rancher cluster; presets `helm_charts_monitoring` and `helm_charts_backup`. |
 | `downstream_metrics_server` | `false` | Install metrics-server in each kind cluster. |
 | `registry_cache_enabled` | `false` | Cache container images on the host for RKE2 and the kind clusters. |
-| `rke2_ingress_controller` | `traefik` | `traefik` or `ingress-nginx`. |
 | `selinux_mode` | `permissive` | `""` leaves SELinux alone. |
 | `install_docker` | `true` | Install Docker on the host. |
 | `rke2_etcd_snapshot_schedule` | `0 */12 * * *` | etcd snapshot schedule; `rke2_etcd_snapshot_retention` keeps 5. |

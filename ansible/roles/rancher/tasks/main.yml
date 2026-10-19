@@ -1,8 +1,7 @@
 ---
 - name: Wait for the RKE2 ingress controller to roll out
   ansible.builtin.command: >-
-    {{ kubectl_bin }} -n kube-system rollout status
-    daemonset/{{ rancher_ingress_daemonset[rke2_ingress_controller] }} --timeout=30s
+    {{ kubectl_bin }} -n kube-system rollout status daemonset/rke2-traefik --timeout=30s
   register: rancher_ingress_ready
   until: rancher_ingress_ready.rc == 0
   retries: 30

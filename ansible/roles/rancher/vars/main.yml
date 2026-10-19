@@ -1,8 +1,4 @@
 ---
-rancher_ingress_daemonset:
-  ingress-nginx: rke2-ingress-nginx-controller
-  traefik: rke2-traefik
-
 # Substring of the certificate issuer for each ingress.tls.source.
 rancher_tls_issuer_cn:
   rancher: dynamiclistener
@@ -27,15 +23,15 @@ rancher_values_base:
   replicas: 1
   bootstrapPassword: "{{ rancher_bootstrap_password }}"
   ingress:
-    # Explicit, so switching rke2_ingress_controller moves the existing Ingress too.
-    ingressClassName: "{{ rke2_ingress_class }}"
+    # Explicit, so an Ingress created for ingress-nginx by an older version moves to Traefik.
+    ingressClassName: traefik
     tls:
       source: "{{ rancher_tls_source }}"
   letsEncrypt:
     email: "{{ rancher_letsencrypt_email }}"
     environment: "{{ rancher_letsencrypt_environment }}"
     ingress:
-      class: "{{ rke2_ingress_class }}"
+      class: traefik
   networkExposure: # required by Rancher v2.14+
     type: ingress
   rancherNamespaces:
