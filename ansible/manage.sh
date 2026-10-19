@@ -13,14 +13,14 @@ Commands:
   install            Install the Ansible collections from requirements.yml
   deploy             Install or update RKE2, cert-manager and Rancher (idempotent)
   reset              Wipe RKE2/k3s/kind/k3d and all Docker data, then deploy from scratch
-  status             Run cluster-status on all hosts
+  status             Show nodes, Rancher clusters, Fleet apps and unhealthy pods
   kubeconfig         Write a fresh kubeconfig to ~/.kube/rancher-platform.yaml
   uninstall-rancher  Remove Rancher and cert-manager (RKE2 stays)
   help               Show this help
 
 Extra options are passed to Ansible, e.g.:
   $0 deploy -i /path/to/inventory.yml
-  $0 deploy -e fleet_gitrepo_enabled=true
+  $0 deploy -e '{"downstream_clusters": ["dev"]}'
 
 Inventory: inventory/hosts.yml if present, else ../terraform/generated/hosts.yml.
 USAGE
@@ -52,13 +52,10 @@ set_vault() {
     fi
 }
 
-# run_module <module> <args> [ansible options]: runs one module on all servers as root.
-run_module() {
-    local module=$1 args=$2
-    shift 2
+playbook() {
     set_inventory "$@"
     set_vault "$@"
-    ansible servers ${INV[@]+"${INV[@]}"} ${VAULT[@]+"${VAULT[@]}"} --become -m "${module}" -a "${args}" "$@"
+    ansible-playbook main.yml ${INV[@]+"${INV[@]}"} ${VAULT[@]+"${VAULT[@]}"} "$@"
 }
 
 COMMAND=${1:-}
@@ -68,22 +65,21 @@ case "${COMMAND}" in
     install)
         ansible-galaxy collection install -r requirements.yml
         ;;
-    deploy | reset)
-        set_inventory "$@"
-        set_vault "$@"
-        [[ "${COMMAND}" == reset ]] && set -- -e reset=true "$@"
-        ansible-playbook main.yml ${INV[@]+"${INV[@]}"} ${VAULT[@]+"${VAULT[@]}"} "$@"
+    deploy)
+        playbook "$@"
+        ;;
+    reset)
+        playbook -e reset=true "$@"
         ;;
     status)
-        run_module ansible.builtin.command /usr/local/bin/cluster-status "$@"
+        # Only the always-tagged bootstrap and summary run.
+        playbook --tags status "$@"
         ;;
     kubeconfig)
-        set_inventory "$@"
-        set_vault "$@"
-        ansible-playbook main.yml ${INV[@]+"${INV[@]}"} ${VAULT[@]+"${VAULT[@]}"} --tags kubeconfig -e kubeconfig_refresh=true "$@"
+        playbook --tags kubeconfig -e kubeconfig_refresh=true "$@"
         ;;
     uninstall-rancher)
-        run_module ansible.builtin.command /usr/local/bin/uninstall-rancher "$@"
+        playbook --tags uninstall "$@"
         ;;
     help | --help | -h)
         usage

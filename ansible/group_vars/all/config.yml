@@ -79,9 +79,14 @@ kind_version: "v0.33.0"
 # renovate: datasource=docker depName=kindest/node
 kind_node_version: "v1.36.4"
 
-# Fleet apps: Git repositories that Fleet deploys to every cluster, the Rancher cluster and the imported
-# ones. Each entry is {name, repo, paths, branch (optional, Fleet defaults to master)}. Removing an entry
-# removes the app on the next deploy. Set fleet_apps: "{{ fleet_apps_examples }}" for sample apps.
+# Fleet apps: Git repositories that Fleet deploys to the Rancher cluster (workspace fleet-local) and the
+# imported ones (fleet-default). Each entry is {name, repo, paths} plus optional
+#   branch          Fleet defaults to master
+#   workspaces      default [fleet-local, fleet-default]
+#   targets         Fleet GitRepo targets; default [{clusterSelector: {}}], every cluster in the workspace
+#   keep_resources  leave the deployed resources in place when the app is removed; default false
+# Removing an entry removes the app on the next deploy. For the samples below, set
+# fleet_apps: "{{ fleet_apps_examples }}"; combine lists with +.
 fleet_apps: []
 fleet_apps_examples:
   # The Helm chart leaves the HPA off; kind clusters have no metrics-server, so an HPA never turns Ready.
@@ -100,9 +105,15 @@ fleet_apps_examples:
     repo: https://github.com/rancher/fleet-examples
     paths: [multi-cluster/helm]
 
-# Optionally register rancher-fleet-clusters as a Fleet GitRepo once Rancher is up.
-fleet_gitrepo_enabled: false
-fleet_gitrepo_manifest_url: https://raw.githubusercontent.com/mbologna/rancher-fleet-clusters/main/gitrepo.yaml
+# ClusterClasses and example clusters from rancher-fleet-clusters, for Rancher Turtles. Needs
+# capi_providers_enabled. keep_resources stops Fleet deleting CAPI clusters when the app is removed.
+fleet_apps_capi_templates:
+  - name: capi-cluster-templates
+    repo: https://github.com/mbologna/rancher-fleet-clusters
+    branch: main
+    paths: [clusterclasses, identities, clusters]
+    workspaces: [fleet-local]
+    keep_resources: true
 
 # ── Paths (defined once, used everywhere) ────────────────────────────────────
 rancher_dev_dir: /root/.rancher-dev

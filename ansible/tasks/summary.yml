@@ -1,29 +1,32 @@
 ---
-- name: Show cluster status
-  ansible.builtin.command: "{{ bin_dir }}/cluster-status"
+# Also the output of ./manage.sh status. Commands fail harmlessly while Rancher or its CRDs are missing.
+- name: Read the cluster status
+  ansible.builtin.command: "{{ kubectl_bin }} {{ item }}"
+  loop:
+    - get nodes -o wide
+    - get clusters.provisioning.cattle.io -A
+    - get gitrepos.fleet.cattle.io -A
+    - get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded
   register: summary_status
   changed_when: false
+  failed_when: false
 
 - name: Show summary
   ansible.builtin.debug:
-    msg: "{{ summary_lines + [''] + summary_status.stdout_lines }}"
+    msg: >-
+      {{ summary_lines
+         + summary_status.results | map(attribute='stdout_lines') | map('default', []) | zip_longest([], fillvalue=[''])
+           | flatten | list }}
   vars:
     summary_lines:
       - "Rancher UI:  https://{{ rancher_hostname }}  (admin / rancher_bootstrap_password from secrets.yml)"
       - "Kubeconfig:  export KUBECONFIG={{ local_kubeconfig }}"
       - "SSH:         ssh {{ ansible_user | default('root') }}@{{ ansible_host }}  (kubectl works out of the box)"
-      - "Helpers:     cluster-status, rancher-logs, port-forward-rancher, uninstall-rancher (sudo -i)"
-      - "{{ summary_fleet_done if fleet_gitrepo_enabled | bool else summary_fleet_next }}"
       - >-
         Downstream:  {{ (downstream_clusters | select('string') | list
                          + downstream_clusters | reject('string') | map(attribute='name') | list) | join(', ')
-                        if downstream_clusters else summary_downstream_none }}
-      - "{{ summary_fleet_apps }}"
-    summary_fleet_apps: >-
-      Fleet apps:  {{ fleet_apps | map(attribute='name') | join(', ') if fleet_apps
-                      else 'none (set fleet_apps to deploy apps to every cluster)' }}
-    summary_downstream_none: none (set downstream_clusters to import kind clusters)
-    summary_fleet_done: "Fleet:       rancher-fleet-clusters registered as a GitRepo in fleet-local"
-    summary_fleet_next: >-
-      Next:        register https://github.com/mbologna/rancher-fleet-clusters
-      (or redeploy with -e fleet_gitrepo_enabled=true)
+                        if downstream_clusters else 'none (set downstream_clusters to import kind clusters)' }}
+      - >-
+        Fleet apps:  {{ fleet_apps | map(attribute='name') | join(', ') if fleet_apps
+                        else 'none (set fleet_apps to deploy apps to every cluster)' }}
+      - ""

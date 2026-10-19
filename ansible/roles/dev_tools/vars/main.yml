@@ -1,2 +1,0 @@
----
-dev_tools_scripts: [cluster-status, rancher-logs, port-forward-rancher, uninstall-rancher]

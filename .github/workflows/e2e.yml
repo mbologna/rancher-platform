@@ -67,6 +67,9 @@ jobs:
           ./manage.sh deploy | tee "${RUNNER_TEMP}/rerun.log"
           grep -E '^runner +: .* changed=0 .* failed=0 ' "${RUNNER_TEMP}/rerun.log"
 
+      - name: Show status
+        run: ./manage.sh status
+
       - name: Check that Rancher answers
         run: |
           test "$(curl -fsSk "https://${RANCHER_HOSTNAME}/ping")" = pong

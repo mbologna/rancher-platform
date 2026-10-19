@@ -96,3 +96,9 @@
     value: "{{ item.value }}"
     sysctl_file: /etc/sysctl.d/99-rancher-platform.conf
   loop: "{{ base_sysctl | dict2items }}"
+
+- name: Remove helper scripts from older versions of this playbook
+  ansible.builtin.file:
+    path: "{{ bin_dir }}/{{ item }}"
+    state: absent
+  loop: [cleanup-rancher, cluster-status, rancher-logs, port-forward-rancher, uninstall-rancher]

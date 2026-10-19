@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-# Managed by Ansible (rancher-platform)
-set -euo pipefail
-export KUBECONFIG="${KUBECONFIG:-{{ rke2_kubeconfig }}}"
-PATH="{{ bin_dir }}:$PATH"
-
-exec kubectl -n cattle-system logs -l app=rancher --tail=100 -f
