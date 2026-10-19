@@ -6,6 +6,7 @@ rke2_version: "v1.36.5+rke2r1"
 # Ingress controller RKE2 deploys: traefik or ingress-nginx (retired upstream in March 2026).
 # Changing it on an existing host restarts RKE2 and replaces the controller.
 rke2_ingress_controller: traefik
+rke2_ingress_class: "{{ {'traefik': 'traefik', 'ingress-nginx': 'nginx'}[rke2_ingress_controller] }}"
 
 # etcd snapshots: RKE2 writes them to /var/lib/rancher/rke2/server/db/snapshots on the host.
 rke2_etcd_snapshot_schedule: "0 */12 * * *"
@@ -97,16 +98,20 @@ kind_node_version: "v1.36.4"
 #   targets         Fleet GitRepo targets; default [{clusterSelector: {}}], every cluster in the workspace
 #   keep_resources  leave the deployed resources in place when the app is removed; default false
 # Removing an entry removes the app on the next deploy. For the samples below, set
-# fleet_apps: "{{ fleet_apps_examples }}"; combine lists with +.
+# fleet_apps: "{{ fleet_apps_examples }}"; combine lists with +. An entry with
+# ingress: {service, port, namespace} also gets an Ingress on the Rancher cluster at
+# http://<name>.<fleet_apps_ingress_domain>.
 fleet_apps: []
 fleet_apps_examples:
   # The Helm chart leaves the HPA off; kind clusters have no metrics-server, so an HPA never turns Ready.
   - name: podinfo
     repo: https://github.com/stefanprodan/podinfo
     paths: [charts/podinfo]
+    ingress: {service: podinfo-charts-podinfo, port: 9898}
   - name: guestbook
     repo: https://github.com/rancher/fleet-examples
     paths: [simple]
+    ingress: {service: frontend, port: 80}
   - name: guestbook-helm
     repo: https://github.com/rancher/fleet-examples
     paths: [single-cluster/helm]
@@ -118,6 +123,11 @@ fleet_apps_examples:
 
 # ClusterClasses and example clusters from rancher-fleet-clusters, for Rancher Turtles. Needs
 # capi_providers_enabled. keep_resources stops Fleet deleting CAPI clusters when the app is removed.
+# Wildcard DNS for app Ingresses: the sslip.io domain of rancher_hostname, else of the host's IP.
+fleet_apps_ingress_domain: >-
+  {{ rancher_hostname | regex_replace('^rancher\\.', '') if rancher_hostname is search('\\.sslip\\.io$')
+     else ansible_facts.default_ipv4.address ~ '.sslip.io' }}
+
 fleet_apps_capi_templates:
   - name: capi-cluster-templates
     repo: https://github.com/mbologna/rancher-fleet-clusters

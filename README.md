@@ -114,7 +114,7 @@ downstream_clusters:
 Fleet reports them ready. Removing an entry removes that app from every cluster.
 
 Your own apps take the same form, `{name, repo, paths}`, with optional `branch` (default
-`master`), `workspaces`, `targets` and `keep_resources`. This one goes only to clusters labelled
+`master`), `workspaces`, `targets`, `keep_resources` and `ingress`. This one goes only to clusters labelled
 `env: dev`:
 
 ```yaml
@@ -134,9 +134,20 @@ add `fleet_apps_capi_templates`, the ClusterClasses and example clusters from
 
 `guestbook-multi` reads the cluster label `env`: `dev` drops the Redis replicas and `test` runs
 three frontends. `env: prod` asks for a `LoadBalancer` Service, which kind clusters cannot
-provide. The apps have no ingress; reach them with `kubectl port-forward`, for example
-`kubectl port-forward svc/podinfo-charts-podinfo 9898` (podinfo) or
-`kubectl port-forward svc/frontend 8080:80` (guestbook).
+provide. Labels dropped from an entry are removed from the cluster on the next deploy.
+
+An entry with `ingress: {service, port, namespace}` also gets an Ingress on the Rancher cluster
+at `http://<name>.<ip>.sslip.io`; `fleet_apps_ingress_domain` changes the domain. `podinfo` and
+`guestbook` have one. For each downstream cluster, the deploy summary prints the same Service
+through Rancher's proxy, which works once you are logged in to the UI:
+
+```text
+App podinfo:  http://podinfo.10.0.0.5.sslip.io
+  on dev:  https://<rancher>/k8s/clusters/c-m-xxxx/api/v1/namespaces/default/services/http:podinfo-charts-podinfo:9898/proxy/
+```
+
+`kubectl port-forward` reaches the other apps, for example `kubectl port-forward svc/frontend
+8080:80 -n fleet-helm-example`.
 
 ## 4. Use the clusters
 
