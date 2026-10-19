@@ -165,8 +165,10 @@ fleet_apps_capi_templates:
     keep_resources: true
 
 # Helm charts on the Rancher cluster: {name, chart, repo, version, namespace, values}; chart defaults
-# to name. Deploy uninstalls charts it installed that are no longer listed. Presets below; combine
-# with +, e.g. helm_charts: "{{ helm_charts_monitoring + helm_charts_backup }}".
+# to name. reuse_secret_values: [{secret, key, value}] passes a value the chart generated on its first
+# install, read from that Secret, back to it on later deploys, so the release stays unchanged.
+# Deploy uninstalls charts it installed that are no longer listed. Presets below; combine with +, e.g.
+# helm_charts: "{{ helm_charts_monitoring + helm_charts_backup }}".
 helm_charts: []
 # Rancher's chart line follows its minor: 110.x is for Rancher 2.15.
 # renovate: datasource=helm depName=rancher-monitoring registryUrl=https://charts.rancher.io
@@ -193,6 +195,57 @@ helm_charts_backup:
      namespace: cattle-resources-system}
   - {name: rancher-backup, repo: "https://charts.rancher.io", version: "{{ rancher_backup_version }}",
      namespace: cattle-resources-system}
+# renovate: datasource=helm depName=kubewarden-crds registryUrl=https://charts.kubewarden.io
+kubewarden_crds_version: "1.28.1"
+# renovate: datasource=helm depName=kubewarden-controller registryUrl=https://charts.kubewarden.io
+kubewarden_controller_version: "5.14.1"
+# renovate: datasource=helm depName=kubewarden-defaults registryUrl=https://charts.kubewarden.io
+kubewarden_defaults_version: "3.14.1"
+# Kubewarden admission policies: the controller and its default PolicyServer, without policies.
+helm_charts_kubewarden:
+  - {name: kubewarden-crds, repo: "https://charts.kubewarden.io", version: "{{ kubewarden_crds_version }}",
+     namespace: kubewarden}
+  - {name: kubewarden-controller, repo: "https://charts.kubewarden.io",
+     version: "{{ kubewarden_controller_version }}", namespace: kubewarden}
+  - {name: kubewarden-defaults, repo: "https://charts.kubewarden.io", version: "{{ kubewarden_defaults_version }}",
+     namespace: kubewarden}
+# renovate: datasource=helm depName=longhorn registryUrl=https://charts.longhorn.io
+longhorn_version: "1.13.0"
+# Longhorn block storage, with one replica per volume because there is one node. Its StorageClass
+# "longhorn" is not the default. Listing a release named longhorn makes base install open-iscsi and
+# the NFS client on the host.
+helm_charts_longhorn:
+  - name: longhorn
+    repo: https://charts.longhorn.io
+    version: "{{ longhorn_version }}"
+    namespace: longhorn-system
+    values:
+      persistence: {defaultClass: false, defaultClassReplicaCount: 1}
+      defaultSettings: {defaultReplicaCount: 1}
+# renovate: datasource=helm depName=harbor registryUrl=https://helm.goharbor.io
+harbor_version: "1.19.4"
+# Harbor container registry at http://harbor.<fleet_apps_ingress_domain>, for testing private
+# registries. Its data is in emptyDir volumes and is lost when a pod restarts. The admin password is
+# harbor_admin_password from secrets.yml, else rancher_bootstrap_password.
+helm_charts_harbor:
+  - name: harbor
+    repo: https://helm.goharbor.io
+    version: "{{ harbor_version }}"
+    namespace: harbor
+    values:
+      expose:
+        type: ingress
+        tls: {enabled: false}
+        ingress:
+          className: traefik
+          hosts: {core: "harbor.{{ fleet_apps_ingress_domain }}"}
+      externalURL: "http://harbor.{{ fleet_apps_ingress_domain }}"
+      harborAdminPassword: "{{ harbor_admin_password | default(rancher_bootstrap_password) }}"
+      persistence: {enabled: false}
+    reuse_secret_values:
+      - {secret: harbor-core, key: tls.key, value: core.tokenKey}
+      - {secret: harbor-core, key: tls.crt, value: core.tokenCert}
+      - {secret: harbor-registry-htpasswd, key: REGISTRY_HTPASSWD, value: registry.credentials.htpasswdString}
 
 # ── Paths (defined once, used everywhere) ────────────────────────────────────
 rancher_dev_dir: /root/.rancher-dev

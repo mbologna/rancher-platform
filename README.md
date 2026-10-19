@@ -190,6 +190,22 @@ operator; it needs an S3 bucket or a storage location in each `Backup` resource 
 anything. `downstream_metrics_server` installs metrics-server in every kind cluster, which
 `kubectl top` and HorizontalPodAutoscalers need.
 
+Three more presets cover common add-ons:
+
+- `helm_charts_kubewarden`: the Kubewarden policy engine with its default PolicyServer. It uses
+  the cert-manager that is already installed.
+- `helm_charts_longhorn`: Longhorn block storage, one replica per volume. Its StorageClass
+  `longhorn` is not the default. The deploy installs `open-iscsi` and the NFS client on the host
+  and starts `iscsid`.
+- `helm_charts_harbor`: a Harbor registry at `http://harbor.<ip>.sslip.io`, for testing private
+  registries. Log in as `admin` with `harbor_admin_password` from `secrets.yml`, which defaults to
+  `rancher_bootstrap_password`. Data lives in `emptyDir` volumes and is lost when a pod restarts.
+  Harbor needs about 2 GB of RAM.
+
+An entry can set `reuse_secret_values: [{secret, key, value}]` for a chart that generates keys or
+passwords on every render. The deploy reads the value from that Secret and passes it back at the
+dotted `value` path, so a rerun leaves the release unchanged. The Harbor preset uses it.
+
 ## 4. Use the clusters
 
 `deploy` writes `~/.kube/rancher-platform.yaml`, with one context per cluster, all reached
@@ -299,7 +315,7 @@ Settings and pinned versions live in
 | `rancher_settings` | `{}` | Rancher settings by name, such as `ui-dashboard-index`. |
 | `downstream_clusters` | `[]` | kind clusters to create and import, or (`type: rke2`) clusters for Rancher to provision on Docker containers. |
 | `fleet_apps` | `[]` | Git repositories Fleet deploys to every cluster; `fleet_apps_examples` holds four samples. |
-| `helm_charts` | `[]` | Helm charts for the Rancher cluster; presets `helm_charts_monitoring` and `helm_charts_backup`. |
+| `helm_charts` | `[]` | Helm charts for the Rancher cluster; presets `helm_charts_monitoring`, `helm_charts_backup`, `helm_charts_kubewarden`, `helm_charts_longhorn`, `helm_charts_harbor`. |
 | `downstream_metrics_server` | `false` | Install metrics-server in each kind cluster. |
 | `registry_cache_enabled` | `false` | Cache container images on the host for RKE2 and the kind clusters. |
 | `selinux_mode` | `permissive` | `""` leaves SELinux alone. |

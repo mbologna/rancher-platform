@@ -39,7 +39,11 @@
 - name: Show summary
   ansible.builtin.debug:
     msg: >-
-      {{ summary_lines + summary_app_urls | default([]) + ['']
+      {{ summary_lines + summary_app_urls | default([])
+         + (['Harbor:      http://harbor.' ~ fleet_apps_ingress_domain
+             ~ '  (admin / harbor_admin_password, else rancher_bootstrap_password)']
+            if 'harbor' in helm_charts | map(attribute='name', default='') else [])
+         + ['']
          + summary_status.results | map(attribute='stdout_lines') | map('default', []) | zip_longest([], fillvalue=[''])
            | flatten | list }}
   vars:
