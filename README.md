@@ -327,8 +327,9 @@ Settings and pinned versions live in
 ### What deploy changes on the host
 
 It disables firewalld and ufw, sets SELinux to permissive, installs Docker, a Python virtualenv,
-RKE2, `kubectl` and `helm`, writes kernel
-settings and adds `rancher_hostname` to `/etc/hosts`. Only `reset` removes existing workloads.
+RKE2, `kubectl` and `helm`, writes kernel settings and adds `rancher_hostname` to `/etc/hosts`.
+With `helm_charts_longhorn` it also installs `open-iscsi` and the NFS client and starts `iscsid`.
+Only `reset` removes existing workloads.
 
 ## Development
 
@@ -340,7 +341,10 @@ Every pull request runs the same hooks in the [Lint workflow](.github/workflows/
 trivy and zizmor in the [Security workflow](.github/workflows/security.yml). Pull requests that
 touch `ansible/` also run the [E2E workflow](.github/workflows/e2e.yml): it deploys with one
 downstream cluster and podinfo as a Fleet app on the GitHub runner, re-runs expecting no changes,
-and checks that Rancher answers and podinfo runs on both clusters. No workflow uses cloud resources.
+and checks that Rancher answers and podinfo runs on both clusters. E2E also runs every Monday on
+Rancher `head`, pinned to that build's commit tag so both deploys use the same image; run it by
+hand with another tag from *Actions → E2E → Run workflow* (`rancher_image_tag`). No workflow uses
+cloud resources.
 
 Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/); the
 [Release workflow](.github/workflows/release.yml) turns them into `CHANGELOG.md` and version tags.

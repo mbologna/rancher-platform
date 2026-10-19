@@ -100,7 +100,7 @@ capa_aws_region: eu-west-1
 # Removing an entry deletes its cluster on the next deploy. Needs Docker (install_docker or a host that
 # already runs it).
 # An entry with type: rke2 is an RKE2 cluster that Rancher provisions on Docker containers on this host
-# (a custom cluster): {name, type: rke2, kubernetes_version: v1.35.4+rke2r1, nodes: 3, labels}. The first
+# (a custom cluster): {name, type: rke2, kubernetes_version: v1.35.9+rke2r1, nodes: 3, labels}. The first
 # node runs etcd, the control plane and workloads; the others are workers. The version defaults to
 # rke2_version and must be one Rancher offers; changing it upgrades the cluster, and changing nodes adds or
 # removes workers. Each node uses about 2 GB of RAM.
