@@ -161,9 +161,20 @@ merge once the E2E workflow has deployed them; minor and major ones wait for rev
 `./manage.sh deploy`. It refuses to skip a Kubernetes minor: go from 1.34 to 1.36 via
 `-e rke2_version=<a v1.35.x release>`.
 
-**Back up.** RKE2 snapshots etcd, which holds all cluster and Rancher state, every 12 hours to
-`/var/lib/rancher/rke2/server/db/snapshots`. Set `rke2_etcd_s3_bucket` to keep copies off the
-host. Restore with the [RKE2 procedure](https://docs.rke2.io/datastore/backup_restore).
+**Snapshot and restore.** etcd holds all RKE2 and Rancher state. RKE2 snapshots it every 12
+hours to `/var/lib/rancher/rke2/server/db/snapshots`; set `rke2_etcd_s3_bucket` to keep copies off
+the host. Take one before an experiment and roll back afterwards:
+
+```bash
+./manage.sh snapshot before-test   # save, then list all snapshots
+./manage.sh snapshots
+./manage.sh restore before-test    # about 3 minutes; Rancher is down meanwhile
+```
+
+`restore` takes the newest snapshot whose name starts with the one given. It rolls back Rancher,
+Fleet and everything on the Rancher cluster. The kind clusters keep running and reconnect; Fleet
+then redeploys the apps it had at snapshot time, but other workloads inside them are not
+restored.
 
 **Check.** `./manage.sh status` shows the nodes, the Rancher clusters, the Fleet apps and any
 pod that is not running.
@@ -191,6 +202,9 @@ Run from `ansible/`. Extra arguments go to `ansible-playbook`.
 | `./manage.sh deploy` | Install or upgrade everything to the pinned versions. |
 | `./manage.sh status` | Show nodes, Rancher clusters, Fleet apps and pods that are not running. |
 | `./manage.sh kubeconfig` | Write a new kubeconfig and revoke the old one. |
+| `./manage.sh snapshot [name]` | Save an etcd snapshot (default name `manual`). |
+| `./manage.sh snapshots` | List etcd snapshots. |
+| `./manage.sh restore <name>` | Restore RKE2 and Rancher from a snapshot. |
 | `./manage.sh uninstall-rancher` | Remove Rancher and cert-manager. |
 | `./manage.sh reset` | **Delete all cluster and Docker data** on the host, including RKE2, K3s, kind and k3d installed by anything, then deploy. |
 

@@ -15,6 +15,9 @@ Commands:
   reset              Wipe RKE2/k3s/kind/k3d and all Docker data, then deploy from scratch
   status             Show nodes, Rancher clusters, Fleet apps and unhealthy pods
   kubeconfig         Write a fresh kubeconfig to ~/.kube/rancher-platform.yaml
+  snapshot [name]    Save an etcd snapshot of RKE2 and Rancher (default name: manual)
+  snapshots          List etcd snapshots
+  restore <name>     Restore RKE2 and Rancher from a snapshot (kind clusters keep running)
   uninstall-rancher  Remove Rancher and cert-manager (RKE2 stays)
   help               Show this help
 
@@ -77,6 +80,20 @@ case "${COMMAND}" in
         ;;
     kubeconfig)
         playbook --tags kubeconfig -e kubeconfig_refresh=true "$@"
+        ;;
+    snapshot)
+        name=manual
+        [[ $# -gt 0 && "$1" != -* ]] && { name=$1; shift; }
+        playbook --tags snapshot,snapshots -e etcd_snapshot_name="${name}" "$@"
+        ;;
+    snapshots)
+        playbook --tags snapshots "$@"
+        ;;
+    restore)
+        [[ $# -gt 0 && "$1" != -* ]] || { echo "Usage: $0 restore <name> [ansible options]" >&2; exit 1; }
+        name=$1
+        shift
+        playbook --tags restore -e etcd_snapshot_name="${name}" "$@"
         ;;
     uninstall-rancher)
         playbook --tags uninstall "$@"

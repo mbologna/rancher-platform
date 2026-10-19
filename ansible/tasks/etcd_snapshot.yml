@@ -1,0 +1,11 @@
+---
+# Saves an etcd snapshot named etcd_snapshot_name. RKE2 appends the node name and a timestamp.
+- name: Check the snapshot name
+  ansible.builtin.assert:
+    that: etcd_snapshot_name is match('^[a-z0-9][-a-z0-9.]{0,62}$')
+    fail_msg: "Snapshot names use lowercase letters, digits, '-' and '.'; got '{{ etcd_snapshot_name }}'."
+    quiet: true
+
+- name: Save etcd snapshot {{ etcd_snapshot_name }}
+  ansible.builtin.command: "{{ rke2_bin }} etcd-snapshot save --name {{ etcd_snapshot_name }}"
+  changed_when: true

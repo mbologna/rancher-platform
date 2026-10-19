@@ -1,0 +1,9 @@
+---
+- name: List etcd snapshots
+  ansible.builtin.command: "{{ rke2_bin }} etcd-snapshot list"
+  register: etcd_snapshots
+  changed_when: false
+
+- name: Show etcd snapshots
+  ansible.builtin.debug:
+    msg: "{{ etcd_snapshots.stdout_lines }}"
