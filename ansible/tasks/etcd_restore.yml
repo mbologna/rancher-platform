@@ -41,6 +41,26 @@
   delay: 10
   changed_when: false
 
+# The restored etcd revision is older than the one controllers were watching, so their caches go
+# stale: canal stops routing new pods and the ingress keeps old endpoints. Restart them all,
+# canal first so the rest get pod networking.
+- name: Restart the CNI after the restore
+  ansible.builtin.shell: >-
+    {{ kubectl_bin }} -n kube-system rollout restart daemonset/rke2-canal &&
+    {{ kubectl_bin }} -n kube-system rollout status daemonset/rke2-canal --timeout=5m
+  changed_when: true
+
+- name: Restart every workload after the restore
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    {{ kubectl_bin }} get deployments,daemonsets,statefulsets -A
+    -o jsonpath='{range .items[*]}{.metadata.namespace} {.kind}/{.metadata.name}{"\n"}{end}'
+    | grep -v ' DaemonSet/rke2-canal$'
+    | while read -r ns obj; do {{ kubectl_bin }} -n "$ns" rollout restart "$obj" || exit 1; done
+  args:
+    executable: /bin/bash
+  changed_when: true
+
 - name: Wait for Rancher to answer
   ansible.builtin.uri:
     url: https://{{ rancher_hostname }}/ping
