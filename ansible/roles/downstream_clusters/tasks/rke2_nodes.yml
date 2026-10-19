@@ -1,0 +1,119 @@
+---
+# Each node is a privileged systemd container on the kind network. The command makes / a shared mount, which
+# Calico needs and Docker does not provide, then boots systemd so the agent and RKE2 start with the container.
+- name: Read the registration token of {{ downstream_clusters_name }}
+  ansible.builtin.include_tasks: token.yml
+
+- name: Run the nodes of {{ downstream_clusters_name }}
+  ansible.builtin.shell: |
+    set -euo pipefail
+    name={{ item.name }}
+    if [ -z "$(docker container ls -aq --filter "name=^${name}$")" ]; then
+      for dir in rancher kubelet; do
+        docker volume create --label {{ downstream_clusters_node_label }}={{ downstream_clusters_name }} \
+          "$name-$dir" >/dev/null
+      done
+      docker run -d --name "$name" --hostname "$name" --privileged --network kind --restart unless-stopped \
+        --label {{ downstream_clusters_node_label }}={{ downstream_clusters_name }} \
+        --add-host {{ rancher_hostname }}:{{ ansible_facts.default_ipv4.address }} \
+        -v /lib/modules:/lib/modules:ro -v "$name-rancher:/var/lib/rancher" -v "$name-kubelet:/var/lib/kubelet" \
+        -v {{ downstream_clusters_node_env }}:/etc/default/rancher-system-agent:ro \
+        -v {{ downstream_clusters_node_env }}:/etc/default/rke2-server:ro \
+        -v {{ downstream_clusters_node_env }}:/etc/default/rke2-agent:ro \
+        {{ downstream_clusters_node_image }} \
+        bash -c 'mount --make-rshared / && exec /usr/lib/systemd/systemd --unit=multi-user.target' >/dev/null
+      echo changed
+    elif [ "$(docker container inspect -f '{{ "{{" }}.State.Running{{ "}}" }}' "$name")" != true ]; then
+      docker start "$name" >/dev/null
+      echo changed
+    fi
+    docker exec "$name" systemctl is-system-running --wait >/dev/null || true
+    docker exec "$name" test -e /etc/systemd/system/rancher-system-agent.service && exit 0
+    docker exec -d "$name" bash -c "$NODE_COMMAND {{ item.roles }} > /var/log/rp-install.log 2>&1"
+    echo changed
+  args:
+    executable: /bin/bash
+  environment:
+    # insecureNodeCommand skips curl's certificate check; the agent still checks the Rancher CA checksum.
+    NODE_COMMAND: >-
+      {{ downstream_clusters_token_status.insecureNodeCommand | replace('{token}', downstream_clusters_token_value)
+         | replace('| sudo ', '| ') }}
+  loop: "{{ downstream_clusters_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: downstream_clusters_node_run
+  changed_when: "'changed' in downstream_clusters_node_run.stdout"
+
+- name: List the node containers of {{ downstream_clusters_name }}
+  ansible.builtin.command: >-
+    docker container ls -a --filter label={{ downstream_clusters_node_label }}={{ downstream_clusters_name }}
+    --format '{{ "{{" }}.Names{{ "}}" }}'
+  register: downstream_clusters_node_list
+  changed_when: false
+
+# Deleting the Machine makes Rancher drain the node and remove it from the cluster.
+- name: Find the Machines of {{ downstream_clusters_name }}
+  kubernetes.core.k8s_info:
+    api_version: cluster.x-k8s.io/v1beta2
+    kind: Machine
+    namespace: fleet-default
+    label_selectors: ["cluster.x-k8s.io/cluster-name={{ downstream_clusters_name }}"]
+  register: downstream_clusters_machines
+  when: downstream_clusters_surplus | length > 0
+
+- name: Remove surplus nodes from Rancher in {{ downstream_clusters_name }}
+  kubernetes.core.k8s:
+    api_version: cluster.x-k8s.io/v1beta2
+    kind: Machine
+    namespace: fleet-default
+    name: "{{ item.metadata.name }}"
+    state: absent
+    wait: true
+    wait_timeout: 600
+  loop: >-
+    {{ downstream_clusters_machines.resources | default([])
+       | selectattr('status.nodeRef.name', 'defined')
+       | selectattr('status.nodeRef.name', 'in', downstream_clusters_surplus) | list }}
+  loop_control:
+    label: "{{ item.status.nodeRef.name }}"
+
+- name: Delete the surplus node containers of {{ downstream_clusters_name }}
+  ansible.builtin.shell: |
+    set -euo pipefail
+    docker container rm -fv {{ item }} >/dev/null
+    docker volume rm {{ item }}-rancher {{ item }}-kubelet >/dev/null
+  args:
+    executable: /bin/bash
+  loop: "{{ downstream_clusters_surplus }}"
+  changed_when: true
+
+# Rancher upgrades a cluster after its spec changes and reports ready throughout, so wait for the nodes.
+- name: Wait for every node to run the requested version in {{ downstream_clusters_name }}
+  ansible.builtin.command: >-
+    docker exec {{ downstream_clusters_nodes[0].name }} /var/lib/rancher/rke2/bin/kubectl
+    --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes
+    -o 'jsonpath={.items[*].status.nodeInfo.kubeletVersion}'
+  register: downstream_clusters_node_versions
+  until: downstream_clusters_node_versions_ok
+  retries: 120
+  delay: 10
+  changed_when: false
+  # A new node has no kubectl until RKE2 starts, so a failing command only means "not yet".
+  failed_when: not downstream_clusters_node_versions_ok
+  vars:
+    downstream_clusters_node_versions_ok: >-
+      {{ downstream_clusters_node_versions.rc == 0
+         and downstream_clusters_node_versions.stdout.split()
+             == [downstream_clusters_rke2_spec.kubernetesVersion] * downstream_clusters_nodes | length }}
+
+# After an upgrade the Fleet agent can keep reporting bundles as not ready until it restarts (seen with
+# Rancher 2.15).
+- name: Restart the Fleet agent after the upgrade of {{ downstream_clusters_name }}
+  ansible.builtin.command: >-
+    docker exec {{ downstream_clusters_nodes[0].name }} /var/lib/rancher/rke2/bin/kubectl
+    --kubeconfig /etc/rancher/rke2/rke2.yaml -n cattle-fleet-system rollout restart deployment fleet-agent
+  when: >-
+    downstream_clusters_existing.resources | length > 0
+    and downstream_clusters_existing.resources[0].spec.kubernetesVersion | default('')
+        != downstream_clusters_rke2_spec.kubernetesVersion
+  changed_when: true

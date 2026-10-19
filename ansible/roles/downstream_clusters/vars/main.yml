@@ -1,11 +1,59 @@
 ---
 downstream_clusters_label: rancher-platform.mbologna.github.io/downstream
 downstream_clusters_labels_annotation: rancher-platform.mbologna.github.io/labels
+# Docker label on the node containers and volumes of rke2 clusters; the value is the cluster name.
+downstream_clusters_node_label: rancher-platform.mbologna.github.io/node-of
 downstream_clusters_kubeconfig: "{{ rancher_dev_dir }}/kind-{{ downstream_clusters_name }}.yaml"
-# downstream_clusters entries are names or {name, kubernetes_version}; these are the normalised forms.
+# downstream_clusters entries are names or {name, type, kubernetes_version, nodes, labels}; these are the
+# normalised forms.
 downstream_clusters_specs: >-
-  {{ downstream_clusters | select('string') | map('community.general.dict_kv', 'name') | list
-     + downstream_clusters | reject('string') | list }}
+  {% set specs = [] %}{% for entry in downstream_clusters %}{% set _ = specs.append({'type': 'kind'}
+  | combine({'name': entry} if entry is string else entry)) %}{% endfor %}{{ specs }}
 downstream_clusters_names: "{{ downstream_clusters_specs | map(attribute='name', default='') | list }}"
-downstream_clusters_version_pattern: ^v1\.[0-9]+\.[0-9]+$
+downstream_clusters_kind_names: >-
+  {{ downstream_clusters_specs | selectattr('type', 'eq', 'kind') | map(attribute='name') | list }}
+downstream_clusters_rke2_specs: "{{ downstream_clusters_specs | selectattr('type', 'eq', 'rke2') | list }}"
+downstream_clusters_version_patterns:
+  kind: ^v1\.[0-9]+\.[0-9]+$
+  rke2: ^v1\.[0-9]+\.[0-9]+\+rke2r[0-9]+$
 downstream_clusters_name_pattern: ^[a-z0-9]([-a-z0-9]{0,28}[a-z0-9])?$
+downstream_clusters_node_env: "{{ rancher_dev_dir }}/rke2-node.env"
+downstream_clusters_node_image: rancher/systemd-node:{{ rke2_node_image_version }}
+# Spec of a Rancher-provisioned cluster. CoreDNS resolves rancher_hostname to this host, as /etc/hosts does
+# here, and forwards to the host's DNS servers; the rest is the rke2-coredns default server block.
+downstream_clusters_rke2_spec:
+  kubernetesVersion: "{{ downstream_clusters_spec.kubernetes_version | default(rke2_version) }}"
+  rkeConfig:
+    chartValues:
+      rke2-coredns:
+        servers:
+          - zones: [{zone: ., use_tcp: true}]
+            port: 53
+            plugins:
+              - name: errors
+              - {name: health, configBlock: lameduck 10s}
+              - name: ready
+              - name: hosts
+                configBlock: "{{ ansible_facts.default_ipv4.address }} {{ rancher_hostname }}\nfallthrough"
+              - name: kubernetes
+                parameters: cluster.local in-addr.arpa ip6.arpa
+                configBlock: "pods insecure\nfallthrough in-addr.arpa ip6.arpa\nttl 30"
+              - {name: prometheus, parameters: "0.0.0.0:9153"}
+              - name: forward
+                parameters: ". {{ downstream_clusters_dns.stdout_lines | default([]) | join(' ') }}"
+              - {name: cache, parameters: "30"}
+              - name: loop
+              - name: reload
+              - name: loadbalance
+    registries:
+      mirrors: >-
+        {% set mirrors = {} %}{% for registry, url in registry_cache_mirrors.items() %}{% set _ =
+        mirrors.update({registry: {'endpoint': [url]}}) %}{% endfor %}{{ mirrors }}
+# Node containers of an rke2 cluster: the first runs every role, the rest are workers.
+downstream_clusters_nodes: >-
+  {% set nodes = [] %}{% for i in range(1, (downstream_clusters_spec.nodes | default(1)) + 1) %}{% set _ =
+  nodes.append({'name': 'rp-' ~ downstream_clusters_name ~ '-' ~ i,
+                'roles': '--etcd --controlplane --worker' if i == 1 else '--worker'}) %}{% endfor %}{{ nodes }}
+downstream_clusters_surplus: >-
+  {{ downstream_clusters_node_list.stdout_lines | reject('in', downstream_clusters_nodes | map(attribute='name'))
+     | list }}

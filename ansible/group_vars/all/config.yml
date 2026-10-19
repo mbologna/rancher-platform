@@ -99,6 +99,11 @@ capa_aws_region: eu-west-1
 # cluster, where Fleet can target them. Each cluster uses about 1 GB of RAM.
 # Removing an entry deletes its cluster on the next deploy. Needs Docker (install_docker or a host that
 # already runs it).
+# An entry with type: rke2 is an RKE2 cluster that Rancher provisions on Docker containers on this host
+# (a custom cluster): {name, type: rke2, kubernetes_version: v1.35.4+rke2r1, nodes: 3, labels}. The first
+# node runs etcd, the control plane and workloads; the others are workers. The version defaults to
+# rke2_version and must be one Rancher offers; changing it upgrades the cluster, and changing nodes adds or
+# removes workers. Each node uses about 2 GB of RAM.
 downstream_clusters: []
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
 kind_version: "v0.33.0"
@@ -106,6 +111,9 @@ kind_version: "v0.33.0"
 # and v1.36.4.
 # renovate: datasource=docker depName=kindest/node
 kind_node_version: "v1.36.4"
+# Node image of rke2 clusters: a systemd image from Rancher's provisioning tests.
+# renovate: datasource=docker depName=rancher/systemd-node
+rke2_node_image_version: "v0.0.9"
 # metrics-server in each kind cluster, so kubectl top and HorizontalPodAutoscalers work.
 downstream_metrics_server: false
 # renovate: datasource=helm depName=metrics-server registryUrl=https://kubernetes-sigs.github.io/metrics-server

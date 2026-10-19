@@ -1,6 +1,8 @@
 ---
-# kind clusters on this host, imported into Rancher. Clusters this role creates carry the
-# rp- prefix in kind and the downstream_clusters_label in Rancher; prune touches nothing else.
+# Downstream clusters on this host: kind clusters imported into Rancher, and RKE2 clusters that Rancher
+# provisions on Docker containers. Clusters this role creates carry the rp- prefix in kind, the
+# downstream_clusters_node_label in Docker and the downstream_clusters_label in Rancher; prune touches
+# nothing else.
 - name: Check the downstream cluster names
   ansible.builtin.assert:
     that:
@@ -8,14 +10,22 @@
       - downstream_clusters_names | reject('match', downstream_clusters_name_pattern) | list | length == 0
       - "'local' not in downstream_clusters_names"
       - downstream_clusters_names | unique | length == downstream_clusters_names | length
+      - downstream_clusters_specs | map(attribute='type') | reject('in', ['kind', 'rke2']) | list | length == 0
       - >-
-        downstream_clusters_specs | map(attribute='kubernetes_version', default=kind_node_version)
-        | reject('match', downstream_clusters_version_pattern) | list | length == 0
+        downstream_clusters_specs | selectattr('type', 'eq', 'kind')
+        | map(attribute='kubernetes_version', default=kind_node_version)
+        | reject('match', downstream_clusters_version_patterns.kind) | list | length == 0
+      - >-
+        downstream_clusters_rke2_specs | map(attribute='kubernetes_version', default=rke2_version)
+        | reject('match', downstream_clusters_version_patterns.rke2) | list | length == 0
+      - downstream_clusters_rke2_specs | map(attribute='nodes', default=1) | reject('integer') | list | length == 0
+      - downstream_clusters_rke2_specs | map(attribute='nodes', default=1) | select('lt', 1) | list | length == 0
       - downstream_clusters_specs | map(attribute='labels', default={}) | reject('mapping') | list | length == 0
     fail_msg: >-
-      downstream_clusters must list unique names, or {name, kubernetes_version, labels} entries, where a name is a
-      lowercase DNS label of up to 30 characters other than "local" and a version looks like v1.36.4;
-      got {{ downstream_clusters }}.
+      downstream_clusters must list unique names, or {name, type, kubernetes_version, nodes, labels} entries,
+      where a name is a lowercase DNS label of up to 30 characters other than "local", type is kind (the
+      default) or rke2, a version looks like v1.36.4 for kind and v1.36.5+rke2r1 for rke2, and nodes is at
+      least 1; got {{ downstream_clusters }}.
 
 - name: Check that Docker is running
   ansible.builtin.command: docker version
@@ -27,7 +37,7 @@
 - name: Require Docker for downstream clusters
   ansible.builtin.assert:
     that: downstream_clusters_docker.rc == 0
-    fail_msg: kind needs Docker. Set install_docker to true or install Docker on the host.
+    fail_msg: Downstream clusters need Docker. Set install_docker to true or install Docker on the host.
   when: downstream_clusters | length > 0
 
 - name: Install kind {{ kind_version }}
@@ -40,7 +50,7 @@
     downstream_clusters_kind_url: >-
       https://github.com/kubernetes-sigs/kind/releases/download/{{ kind_version }}/kind-linux-{{
       'arm64' if ansible_facts.architecture == 'aarch64' else 'amd64' }}
-  when: downstream_clusters | length > 0
+  when: downstream_clusters_kind_names | length > 0
 
 - name: Check for kind
   ansible.builtin.stat:
@@ -53,7 +63,33 @@
   changed_when: false
   when: downstream_clusters_kind_bin.stat.exists
 
-- name: Import the clusters
+# Pods in rke2 clusters cannot reach Docker's DNS server (127.0.0.11 in each node container), so CoreDNS
+# forwards to the host's upstream servers. systemd-resolved hosts list them in its own resolv.conf.
+- name: Read the host's DNS servers for rke2 clusters
+  ansible.builtin.shell: |
+    set -euo pipefail
+    for f in /run/systemd/resolve/resolv.conf /etc/resolv.conf; do
+      [ -r "$f" ] || continue
+      servers=$(awk '$1 == "nameserver" && $2 !~ /^127\./ && $2 != "::1" {print $2}' "$f")
+      [ -n "$servers" ] && { echo "$servers"; exit 0; }
+    done
+    exit 1
+  args:
+    executable: /bin/bash
+  register: downstream_clusters_dns
+  changed_when: false
+  failed_when: downstream_clusters_dns.rc != 0
+  when: downstream_clusters_rke2_specs | length > 0
+
+- name: Write the environment file of the rke2 node services
+  ansible.builtin.copy:
+    # An empty INVOCATION_ID makes RKE2 and the system agent use cgroupfs, as in Rancher's own tests.
+    content: "INVOCATION_ID=\n"
+    dest: "{{ downstream_clusters_node_env }}"
+    mode: "0644"
+  when: downstream_clusters_rke2_specs | length > 0
+
+- name: Create or import the clusters
   ansible.builtin.include_tasks: cluster.yml
   loop: "{{ downstream_clusters_specs }}"
   loop_control:
@@ -87,8 +123,27 @@
   ansible.builtin.command: "{{ bin_dir }}/kind delete cluster --name {{ item }}"
   loop: >-
     {{ (downstream_clusters_kind_list.stdout_lines | default([])) | select('match', '^rp-')
-       | reject('in', downstream_clusters_names | map('regex_replace', '^', 'rp-') | list) | list }}
+       | reject('in', downstream_clusters_kind_names | map('regex_replace', '^', 'rp-') | list) | list }}
   changed_when: true
+
+- name: Delete the node containers and volumes of unlisted rke2 clusters
+  ansible.builtin.shell: |
+    set -euo pipefail
+    command -v docker >/dev/null || exit 0
+    keep=" {{ downstream_clusters_rke2_specs | map(attribute='name') | join(' ') }} "
+    label={{ downstream_clusters_node_label }}
+    format='{{ "{{" }}.Names{{ "}}" }} {{ "{{" }}.Label "{{ downstream_clusters_node_label }}"{{ "}}" }}'
+    # Containers first: Docker keeps a volume while a container uses it.
+    docker container ls -a --filter "label=$label" --format "$format" | while read -r name cluster; do
+      case "$keep" in *" $cluster "*) ;; *) docker container rm -fv "$name" >/dev/null; echo "removed $name" ;; esac
+    done
+    docker volume ls --filter "label=$label" --format "${format/.Names/.Name}" | while read -r name cluster; do
+      case "$keep" in *" $cluster "*) ;; *) docker volume rm "$name" >/dev/null; echo "removed $name" ;; esac
+    done
+  args:
+    executable: /bin/bash
+  register: downstream_clusters_node_prune
+  changed_when: downstream_clusters_node_prune.stdout | length > 0
 
 - name: Remove the kubeconfigs and import manifests of deleted clusters
   ansible.builtin.file:
@@ -96,5 +151,5 @@
     state: absent
   loop: >-
     {{ (downstream_clusters_kind_list.stdout_lines | default([])) | select('match', '^rp-')
-       | reject('in', downstream_clusters_names | map('regex_replace', '^', 'rp-') | list) | list
+       | reject('in', downstream_clusters_kind_names | map('regex_replace', '^', 'rp-') | list) | list
        | product(['kind', 'import']) | list }}

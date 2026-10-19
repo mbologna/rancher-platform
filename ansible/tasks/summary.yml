@@ -50,7 +50,7 @@
       - >-
         Downstream:  {{ (downstream_clusters | select('string') | list
                          + downstream_clusters | reject('string') | map(attribute='name') | list) | join(', ')
-                        if downstream_clusters else 'none (set downstream_clusters to import kind clusters)' }}
+                        if downstream_clusters else 'none (set downstream_clusters to add clusters)' }}
       - >-
         Fleet apps:  {{ fleet_apps | map(attribute='name') | join(', ') if fleet_apps
                         else 'none (set fleet_apps to deploy apps to every cluster)' }}
