@@ -54,3 +54,6 @@
       - >-
         Fleet apps:  {{ fleet_apps | map(attribute='name') | join(', ') if fleet_apps
                         else 'none (set fleet_apps to deploy apps to every cluster)' }}
+      - >-
+        Helm charts: {{ helm_charts | map(attribute='name') | join(', ') if helm_charts
+                        else 'none (set helm_charts to install charts such as helm_charts_monitoring)' }}

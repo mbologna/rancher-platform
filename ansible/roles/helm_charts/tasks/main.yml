@@ -1,0 +1,65 @@
+---
+# Helm releases on the Rancher cluster. A ConfigMap records the releases this role installed;
+# prune uninstalls only those.
+- name: Check the Helm charts
+  ansible.builtin.assert:
+    that:
+      - helm_charts is sequence and helm_charts is not string
+      - helm_charts | reject('mapping') | list | length == 0
+      - helm_charts | map(attribute='name', default='') | reject('match', '^[a-z0-9]([-a-z0-9]{0,51}[a-z0-9])?$')
+        | list | length == 0
+      - helm_charts | map(attribute='repo', default='') | reject | list | length == 0
+      - helm_charts | map(attribute='namespace', default='') | reject | list | length == 0
+      - helm_charts_wanted | unique | length == helm_charts_wanted | length
+    fail_msg: >-
+      helm_charts must be a list of {name, chart, repo, version, namespace, values} with lowercase
+      DNS-label names, unique per namespace; got {{ helm_charts | map(attribute='name', default='?') }}.
+
+- name: Install or upgrade the Helm charts
+  kubernetes.core.helm:
+    name: "{{ item.name }}"
+    chart_ref: "{{ item.chart | default(item.name) }}"
+    chart_repo_url: "{{ item.repo }}"
+    chart_version: "{{ item.version | default(omit) }}"
+    release_namespace: "{{ item.namespace }}"
+    create_namespace: true
+    binary_path: "{{ helm_bin }}"
+    values: "{{ item.get('values', {}) }}"
+    wait: true
+    timeout: 900s
+  loop: "{{ helm_charts }}"
+  loop_control:
+    label: "{{ item.namespace }}/{{ item.name }} {{ item.version | default('') }}"
+  # helm-diff renders client-side by default, where lookup() returns nothing. Charts that
+  # reuse secrets or probe the cluster (rancher-monitoring) would then always differ.
+  environment:
+    HELM_DIFF_USE_UPGRADE_DRY_RUN: "true"
+
+- name: Read the Helm releases installed before
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: kube-system
+    name: "{{ helm_charts_configmap }}"
+  register: helm_charts_record
+
+- name: Uninstall Helm charts that are no longer listed
+  kubernetes.core.helm:
+    name: "{{ item.split('/') | last }}"
+    release_namespace: "{{ item.split('/') | first }}"
+    binary_path: "{{ helm_bin }}"
+    state: absent
+    wait: true
+  loop: "{{ helm_charts_installed | reject('in', helm_charts_wanted) | reverse | list }}"
+
+- name: Record the installed Helm releases
+  kubernetes.core.k8s:
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ helm_charts_configmap }}"
+        namespace: kube-system
+      data:
+        releases: "{{ helm_charts_wanted | join('\n') }}"
+  when: helm_charts_wanted != helm_charts_installed

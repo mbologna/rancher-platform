@@ -149,6 +149,24 @@ App podinfo:  http://podinfo.10.0.0.5.sslip.io
 `kubectl port-forward` reaches the other apps, for example `kubectl port-forward svc/frontend
 8080:80 -n fleet-helm-example`.
 
+### Add Helm charts to the Rancher cluster
+
+`helm_charts` installs charts on the Rancher cluster, in list order. Each entry is
+`{name, repo, namespace}`, with optional `chart` (default `name`), `version` and `values`.
+Removing an entry uninstalls the release on the next deploy; releases installed by other means
+are left alone. Two presets pin Rancher's own charts:
+
+```yaml
+helm_charts: "{{ helm_charts_monitoring + helm_charts_backup }}"
+downstream_metrics_server: true
+```
+
+`helm_charts_monitoring` is Rancher Monitoring (Prometheus, Grafana and Alertmanager, about 2 GB
+of RAM), shown under *Monitoring* in the Rancher UI. `helm_charts_backup` is the Rancher Backups
+operator; it needs an S3 bucket or a storage location in each `Backup` resource before it can save
+anything. `downstream_metrics_server` installs metrics-server in every kind cluster, which
+`kubectl top` and HorizontalPodAutoscalers need.
+
 ## 4. Use the clusters
 
 `deploy` writes `~/.kube/rancher-platform.yaml`, with one context per cluster, all reached
@@ -249,6 +267,8 @@ Settings and pinned versions live in
 | `rancher_settings` | `{}` | Rancher settings by name, such as `ui-dashboard-index`. |
 | `downstream_clusters` | `[]` | kind clusters to create and import. |
 | `fleet_apps` | `[]` | Git repositories Fleet deploys to every cluster; `fleet_apps_examples` holds four samples. |
+| `helm_charts` | `[]` | Helm charts for the Rancher cluster; presets `helm_charts_monitoring` and `helm_charts_backup`. |
+| `downstream_metrics_server` | `false` | Install metrics-server in each kind cluster. |
 | `rke2_ingress_controller` | `traefik` | `traefik` or `ingress-nginx`. |
 | `selinux_mode` | `permissive` | `""` leaves SELinux alone. |
 | `install_docker` | `true` | Install Docker on the host. |

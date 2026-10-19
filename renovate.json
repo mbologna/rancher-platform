@@ -50,6 +50,14 @@
       "allowedVersions": "/^v1\\.(2[0-9]|3[0-6])\\./"
     },
     {
+      "description": "Rancher's own charts follow its minor (110.x is Rancher 2.15); raise this with the Rancher pin",
+      "matchDepNames": [
+        "rancher-monitoring",
+        "rancher-backup"
+      ],
+      "allowedVersions": "<111"
+    },
+    {
       "description": "Minor and major platform updates need a human decision on compatibility and upgrade order. Patches automerge after the E2E workflow deploys them on the runner. The empty suffix drops the shared preset's [automerge] title tag, which is set by update type",
       "matchDepNames": [
         "rancher/rke2",

@@ -1,0 +1,8 @@
+---
+helm_charts_configmap: rancher-platform-helm-charts
+helm_charts_wanted: >-
+  {{ helm_charts | map(attribute='namespace', default='') | zip(helm_charts | map(attribute='name', default=''))
+     | map('join', '/') | list }}
+helm_charts_installed: >-
+  {{ (helm_charts_record.resources[0].data.releases | default('') if helm_charts_record.resources else '')
+     .splitlines() | select | list }}
