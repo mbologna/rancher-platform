@@ -102,6 +102,28 @@
       tags: [capi_providers]
 
   post_tasks:
+    # Run only with their tags: ./manage.sh snapshot, snapshots and restore.
+    - name: Save an etcd snapshot
+      ansible.builtin.include_tasks:
+        file: tasks/etcd_snapshot.yml
+        apply:
+          tags: [snapshot]
+      tags: [never, snapshot]
+
+    - name: List etcd snapshots
+      ansible.builtin.include_tasks:
+        file: tasks/etcd_snapshots.yml
+        apply:
+          tags: [snapshots]
+      tags: [never, snapshots]
+
+    - name: Restore an etcd snapshot
+      ansible.builtin.include_tasks:
+        file: tasks/etcd_restore.yml
+        apply:
+          tags: [restore]
+      tags: [never, restore]
+
     # Runs only with --tags uninstall (./manage.sh uninstall-rancher).
     - name: Remove Rancher and cert-manager (RKE2 and the downstream clusters stay)
       ansible.builtin.script: files/uninstall-rancher.sh

@@ -1,0 +1,52 @@
+---
+# Restores RKE2 (and with it Rancher) from a local etcd snapshot. kind clusters keep running and
+# reconnect; their own workloads are not part of the snapshot.
+- name: Find snapshot {{ etcd_snapshot_name }}
+  ansible.builtin.find:
+    paths: "{{ rke2_snapshot_dir }}"
+    patterns: ["{{ etcd_snapshot_name }}", "{{ etcd_snapshot_name }}-*"]
+  register: etcd_restore_found
+
+- name: Check that the snapshot exists
+  ansible.builtin.assert:
+    that: etcd_restore_found.files | length > 0
+    fail_msg: >-
+      No snapshot named {{ etcd_snapshot_name }} in {{ rke2_snapshot_dir }}; ./manage.sh snapshots lists them.
+    quiet: true
+
+- name: Pick the newest match
+  ansible.builtin.set_fact:
+    etcd_restore_path: "{{ (etcd_restore_found.files | sort(attribute='mtime') | last).path }}"
+
+- name: Stop RKE2
+  ansible.builtin.systemd_service:
+    name: rke2-server
+    state: stopped
+
+- name: Restore etcd from {{ etcd_restore_path }}
+  ansible.builtin.command: >-
+    {{ rke2_bin }} server --cluster-reset --cluster-reset-restore-path={{ etcd_restore_path }}
+  changed_when: true
+
+- name: Start RKE2
+  ansible.builtin.systemd_service:
+    name: rke2-server
+    state: started
+
+- name: Wait for the node to be Ready
+  ansible.builtin.command: "{{ kubectl_bin }} wait nodes --all --for=condition=Ready --timeout=30s"
+  register: etcd_restore_nodes
+  until: etcd_restore_nodes.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Wait for Rancher to answer
+  ansible.builtin.uri:
+    url: https://{{ rancher_hostname }}/ping
+    validate_certs: false
+    return_content: true
+  register: etcd_restore_ping
+  until: etcd_restore_ping.content | default('') == 'pong'
+  retries: 60
+  delay: 10

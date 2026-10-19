@@ -131,6 +131,8 @@ k8s_venv: /opt/rancher-platform/venv
 k8s_python: "{{ k8s_venv }}/bin/python"
 bin_dir: /usr/local/bin
 kubectl_bin: "{{ bin_dir }}/kubectl"
+rke2_bin: "{{ rke2_install_prefix }}/bin/rke2"
+rke2_snapshot_dir: /var/lib/rancher/rke2/server/db/snapshots
 helm_bin: "{{ bin_dir }}/helm"
 # Pinned because get.rke2.io falls back to /opt/rke2 when /usr/local is a mount point (Leap 16 btrfs).
 rke2_install_prefix: /usr/local
