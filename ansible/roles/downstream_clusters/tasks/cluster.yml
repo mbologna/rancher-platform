@@ -1,48 +1,4 @@
 ---
-# kind cannot upgrade a cluster, so kubernetes_version applies when the cluster is created.
-- name: Create the kind cluster rp-{{ downstream_clusters_name }}
-  ansible.builtin.command: >-
-    {{ bin_dir }}/kind create cluster --name rp-{{ downstream_clusters_name }}
-    --image kindest/node:{{ downstream_clusters_spec.kubernetes_version | default(kind_node_version) }}
-    --kubeconfig {{ downstream_clusters_kubeconfig }}
-  when: ('rp-' ~ downstream_clusters_name) not in (downstream_clusters_kind_list.stdout_lines | default([]))
-  changed_when: true
-
-- name: Write the kubeconfig of rp-{{ downstream_clusters_name }}
-  ansible.builtin.command: >-
-    {{ bin_dir }}/kind export kubeconfig --name rp-{{ downstream_clusters_name }}
-    --kubeconfig {{ downstream_clusters_kubeconfig }}
-  changed_when: false
-
-- name: Point the kind cluster at the registry cache rp-{{ downstream_clusters_name }}
-  ansible.builtin.script:
-    cmd: >-
-      kind-registry-mirrors.sh rp-{{ downstream_clusters_name }}-control-plane
-      {{ registry_cache_mirrors.items() | map('join', '=') | join(' ') }}
-  register: downstream_clusters_mirrors
-  changed_when: "'changed' in downstream_clusters_mirrors.stdout"
-
-- name: Resolve the Rancher hostname inside rp-{{ downstream_clusters_name }}
-  kubernetes.core.k8s:
-    api_version: v1
-    kind: ConfigMap
-    namespace: kube-system
-    name: coredns
-    resource_definition:
-      data:
-        Corefile: "{{ lookup('ansible.builtin.template', 'Corefile.j2') }}"
-  # Via the environment: a kubeconfig parameter is looked up on the controller under local connection.
-  environment:
-    K8S_AUTH_KUBECONFIG: "{{ downstream_clusters_kubeconfig }}"
-  register: downstream_clusters_coredns
-
-- name: Restart CoreDNS in rp-{{ downstream_clusters_name }}
-  ansible.builtin.command: >-
-    {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }} -n kube-system
-    rollout restart deployment coredns
-  when: downstream_clusters_coredns is changed # noqa: no-handler -- per-cluster, inside a loop
-  changed_when: true
-
 - name: Look up the Rancher cluster {{ downstream_clusters_name }}
   kubernetes.core.k8s_info:
     api_version: provisioning.cattle.io/v1
@@ -50,6 +6,22 @@
     namespace: fleet-default
     name: "{{ downstream_clusters_name }}"
   register: downstream_clusters_existing
+
+# Rancher cannot turn an imported cluster into a provisioned one or back.
+- name: Refuse to change the type of {{ downstream_clusters_name }}
+  ansible.builtin.assert:
+    that: >-
+      not downstream_clusters_existing.resources
+      or (downstream_clusters_existing.resources[0].spec.rkeConfig | default(none) is not none)
+         == (downstream_clusters_spec.type == 'rke2')
+    fail_msg: >-
+      {{ downstream_clusters_name }} exists in Rancher with another type. Remove it from downstream_clusters,
+      deploy to delete it, then add it back with the new type.
+    quiet: true
+
+- name: Create the kind cluster {{ downstream_clusters_name }}
+  ansible.builtin.include_tasks: kind.yml
+  when: downstream_clusters_spec.type == 'kind'
 
 # The annotation records the label keys this role set, so keys dropped from the entry can be removed
 # (a null value deletes a label in a merge patch).
@@ -78,7 +50,7 @@
         annotations: >-
           {{ {downstream_clusters_labels_annotation: downstream_clusters_spec.labels | default({}) | join(',')}
              | combine({} if downstream_clusters_existing.resources else {'field.cattle.io/no-creator-rbac': 'true'}) }}
-      spec: {}
+      spec: "{{ downstream_clusters_rke2_spec if downstream_clusters_spec.type == 'rke2' else {} }}"
 
 - name: Wait for the registration manifest of {{ downstream_clusters_name }}
   kubernetes.core.k8s_info:
@@ -108,157 +80,21 @@
         labels: "{{ downstream_clusters_labels }}"
   when: downstream_clusters_labels | length > 0
 
-# provisioning status.ready and the Connected condition both survive uninstall-rancher and a hostname
-# change, so neither shows that an agent still reaches Rancher. The agent's CA checksum and server do.
-- name: Read the Rancher CA
+- name: Import the kind cluster {{ downstream_clusters_name }}
+  ansible.builtin.include_tasks: kind_import.yml
+  when: downstream_clusters_spec.type == 'kind'
+
+- name: Run the rke2 nodes of {{ downstream_clusters_name }}
+  ansible.builtin.include_tasks: rke2_nodes.yml
+  when: downstream_clusters_spec.type == 'rke2'
+
+- name: Wait for Rancher to report ready on {{ downstream_clusters_name }}
   kubernetes.core.k8s_info:
-    api_version: management.cattle.io/v3
-    kind: Setting
-    name: cacerts
-  register: downstream_clusters_cacerts
-
-- name: Read the Rancher CA checksum and server of the agent in rp-{{ downstream_clusters_name }}
-  ansible.builtin.command: >-
-    {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }} -n cattle-system
-    get deployment cattle-cluster-agent
-    -o 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="CATTLE_CA_CHECKSUM")].value}
-    {.spec.template.spec.containers[0].env[?(@.name=="CATTLE_SERVER")].value}'
-  register: downstream_clusters_agent_env
-  changed_when: false
-  failed_when: false
-
-# Mirrors CAChecksum() in Rancher's pkg/systemtemplate.
-- name: Compare Rancher with the agent of {{ downstream_clusters_name }}
-  ansible.builtin.set_fact:
-    downstream_clusters_agent_current: >-
-      {{ downstream_clusters_agent_env.rc == 0
-         and downstream_clusters_agent_env.stdout.split() == [rancher_ca_checksum, 'https://' ~ rancher_hostname] }}
-  vars:
-    rancher_ca: "{{ downstream_clusters_cacerts.resources[0].value | default('') }}"
-    newline: "\n"
-    rancher_ca_checksum: >-
-      {{ '' if rancher_ca == ''
-         else (rancher_ca ~ ('' if rancher_ca.endswith(newline) else newline)) | hash('sha256') }}
-
-# Give an agent that trusts the CA a minute to reconnect after a Rancher restart.
-- name: Check the agent connection of {{ downstream_clusters_name }}
-  ansible.builtin.command: >-
-    {{ kubectl_bin }} wait clusters.management.cattle.io/{{ downstream_clusters_id }} --for=condition=Connected
-    --timeout=60s
-  register: downstream_clusters_connected
-  when: downstream_clusters_agent_current | bool
-  changed_when: false
-  failed_when: false
-
-# Re-applying the manifest also updates the agent's Rancher CA checksum and server.
-- name: Import the cluster {{ downstream_clusters_name }}
-  when: not downstream_clusters_agent_current | bool or downstream_clusters_connected.rc != 0
-  block:
-    - name: Read the registration token of {{ downstream_clusters_name }}
-      kubernetes.core.k8s_info:
-        api_version: management.cattle.io/v3
-        kind: ClusterRegistrationToken
-        namespace: "{{ downstream_clusters_id }}"
-      register: downstream_clusters_token
-      until: >-
-        downstream_clusters_token.resources | map(attribute='status.manifestUrl', default='')
-        | select | list | length > 0
-      retries: 30
-      delay: 5
-
-    - name: Pick the registration token of {{ downstream_clusters_name }}
-      ansible.builtin.set_fact:
-        downstream_clusters_token_status: >-
-          {{ (downstream_clusters_token.resources | selectattr('status.manifestUrl', 'defined')
-              | selectattr('status.manifestUrl') | first).status }}
-      no_log: true
-
-    # Rancher 2.15 keeps the token in a Secret and leaves a {token} placeholder in manifestUrl.
-    - name: Read the token Secret of {{ downstream_clusters_name }}
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: Secret
-        namespace: "{{ downstream_clusters_id }}"
-        name: "{{ downstream_clusters_token_status.tokenSecretName }}"
-      register: downstream_clusters_token_secret
-      when: downstream_clusters_token_status.tokenSecretName | default('') | length > 0
-      no_log: true
-
-    # The URL points at this host (see /etc/hosts), which may serve a self-signed or staging certificate.
-    # Rancher keeps the old host in manifestUrl after server-url changes, so only its path is used.
-    - name: Download the registration manifest of {{ downstream_clusters_name }}
-      ansible.builtin.get_url:
-        url: >-
-          {{ downstream_clusters_token_status.manifestUrl
-             | regex_replace('^https://[^/]+', 'https://' ~ rancher_hostname)
-             | replace('{token}', downstream_clusters_token_status.token
-                       or downstream_clusters_token_secret.resources[0].data.token | b64decode) }}
-        dest: "{{ rancher_dev_dir }}/import-{{ downstream_clusters_name }}.yaml"
-        mode: "0600"
-        force: true
-        validate_certs: false
-      no_log: true
-
-    - name: Apply the registration manifest to rp-{{ downstream_clusters_name }}
-      ansible.builtin.command: >-
-        {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }}
-        apply -f {{ rancher_dev_dir }}/import-{{ downstream_clusters_name }}.yaml
-      changed_when: true
-
-    # The registration manifest deploys an agent without Rancher's feature flags, so the agent never opens
-    # the tunnel behind the Connected condition. Rancher only replaces it on its own for a new cluster.
-    - name: Ask Rancher to redeploy the agent of {{ downstream_clusters_name }}
-      ansible.builtin.command: >-
-        {{ kubectl_bin }} annotate --overwrite clusters.management.cattle.io/{{ downstream_clusters_id }}
-        io.cattle.agent.force.deploy=true
-      changed_when: true
-
-    - name: Wait for Rancher to deploy the agent of {{ downstream_clusters_name }}
-      ansible.builtin.command: >-
-        {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }} -n cattle-system
-        get deployment cattle-cluster-agent
-        -o 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="CATTLE_FEATURES")].value}'
-      register: downstream_clusters_agent_features
-      until: downstream_clusters_agent_features.stdout | length > 0
-      retries: 60
-      delay: 10
-      changed_when: false
-
-    - name: Wait for the agent rollout in rp-{{ downstream_clusters_name }}
-      ansible.builtin.command: >-
-        {{ kubectl_bin }} --kubeconfig {{ downstream_clusters_kubeconfig }} -n cattle-system
-        rollout status deployment cattle-cluster-agent --timeout=600s
-      changed_when: false
-
-    - name: Wait for the agent connection of {{ downstream_clusters_name }}
-      ansible.builtin.command: >-
-        {{ kubectl_bin }} wait clusters.management.cattle.io/{{ downstream_clusters_id }}
-        --for=condition=Connected --timeout=600s
-      changed_when: false
-
-    - name: Wait for Rancher to report ready on {{ downstream_clusters_name }}
-      kubernetes.core.k8s_info:
-        api_version: provisioning.cattle.io/v1
-        kind: Cluster
-        namespace: fleet-default
-        name: "{{ downstream_clusters_name }}"
-      register: downstream_clusters_ready
-      until: downstream_clusters_ready.resources[0].status.ready | default(false)
-      retries: 60
-      delay: 10
-
-- name: Install or remove metrics-server in rp-{{ downstream_clusters_name }}
-  kubernetes.core.helm:
-    name: metrics-server
-    chart_ref: metrics-server
-    chart_repo_url: https://kubernetes-sigs.github.io/metrics-server
-    chart_version: "{{ metrics_server_version }}"
-    release_namespace: kube-system
-    binary_path: "{{ helm_bin }}"
-    # kind's kubelets serve self-signed certificates.
-    values:
-      args: [--kubelet-insecure-tls]
-    state: "{{ 'present' if downstream_metrics_server | bool else 'absent' }}"
-    wait: true
-  environment:
-    K8S_AUTH_KUBECONFIG: "{{ downstream_clusters_kubeconfig }}"
+    api_version: provisioning.cattle.io/v1
+    kind: Cluster
+    namespace: fleet-default
+    name: "{{ downstream_clusters_name }}"
+  register: downstream_clusters_ready
+  until: downstream_clusters_ready.resources[0].status.ready | default(false)
+  retries: 90
+  delay: 10

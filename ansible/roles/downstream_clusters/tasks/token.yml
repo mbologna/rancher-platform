@@ -1,0 +1,37 @@
+---
+- name: Read the registration token of {{ downstream_clusters_name }}
+  kubernetes.core.k8s_info:
+    api_version: management.cattle.io/v3
+    kind: ClusterRegistrationToken
+    namespace: "{{ downstream_clusters_id }}"
+  register: downstream_clusters_token
+  until: >-
+    downstream_clusters_token.resources | map(attribute='status.manifestUrl', default='')
+    | select | list | length > 0
+  retries: 30
+  delay: 5
+
+- name: Pick the registration token of {{ downstream_clusters_name }}
+  ansible.builtin.set_fact:
+    downstream_clusters_token_status: >-
+      {{ (downstream_clusters_token.resources | selectattr('status.manifestUrl', 'defined')
+          | selectattr('status.manifestUrl') | first).status }}
+  no_log: true
+
+# Rancher 2.15 keeps the token in a Secret and leaves a {token} placeholder in manifestUrl.
+- name: Read the token Secret of {{ downstream_clusters_name }}
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ downstream_clusters_id }}"
+    name: "{{ downstream_clusters_token_status.tokenSecretName }}"
+  register: downstream_clusters_token_secret
+  when: downstream_clusters_token_status.tokenSecretName | default('') | length > 0
+  no_log: true
+
+- name: Note the registration token of {{ downstream_clusters_name }}
+  ansible.builtin.set_fact:
+    downstream_clusters_token_value: >-
+      {{ downstream_clusters_token_status.token
+         or downstream_clusters_token_secret.resources[0].data.token | b64decode }}
+  no_log: true

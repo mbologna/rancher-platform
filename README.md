@@ -16,7 +16,8 @@ from the repository root unless noted; all of them are safe to re-run.
 You need a Linux host you can SSH into as root or as a user with passwordless sudo, with:
 
 - openSUSE Leap 16.0, SLES 15 SP7, or Ubuntu 22.04 or 24.04 (tested on 17 October 2026);
-- 4 vCPUs, 16 GB RAM and 100 GB disk, plus about 1 GB RAM per downstream cluster;
+- 4 vCPUs, 16 GB RAM and 100 GB disk, plus about 1 GB RAM per kind cluster and 2 GB per
+  provisioned node;
 - ports 80 and 443 reachable from your browser.
 
 Then pick one:
@@ -89,6 +90,28 @@ downstream_clusters:
   - {name: legacy, kubernetes_version: v1.34.11}
   - {name: staging, kubernetes_version: v1.35.8}
 ```
+
+### Clusters provisioned by Rancher
+
+An entry with `type: rke2` is an RKE2 cluster that Rancher itself provisions, as it would on
+your own machines (a custom cluster). Its nodes are Docker containers `rp-<name>-<n>` on the
+same host, using the [`rancher/systemd-node`](https://hub.docker.com/r/rancher/systemd-node)
+image from Rancher's provisioning tests. Use them to try provisioning, upgrades and node changes
+from the Rancher UI or API. Rancher does not support this node type, and each node needs about
+2 GB of RAM.
+
+```yaml
+downstream_clusters:
+  - {name: prov, type: rke2}                                         # 1 node, rke2_version
+  - {name: prov3, type: rke2, kubernetes_version: v1.35.9+rke2r1, nodes: 3}
+```
+
+The first node runs etcd, the control plane and workloads; the others are workers. The version
+must be one Rancher offers (`https://<rancher_hostname>/v1-rke2-release/releases`). Raising
+`kubernetes_version` upgrades the cluster, and `deploy` waits until every node runs it. Changing
+`nodes` adds or removes workers. A new 3-node cluster was ready about 5 minutes after registration on
+19 October 2026. The node containers restart with Docker and rejoin by themselves. `deploy`
+refuses to turn a kind cluster into an rke2 one, or back; remove the entry first.
 
 ### Deploy apps to every cluster
 
@@ -222,8 +245,8 @@ restored.
 
 **Cache images.** Repeated resets and new kind clusters pull the same images again, and Docker
 Hub limits anonymous pulls. `registry_cache_enabled: true` runs a pull-through cache on the host
-for docker.io, ghcr.io, quay.io and registry.k8s.io, on ports 5001–5004. RKE2 and the kind clusters
-pull through it and go to the upstream registry when it is down. The images stay in Docker volumes
+for docker.io, ghcr.io, quay.io and registry.k8s.io, on ports 5001–5004. RKE2 and the downstream
+clusters pull through it and go to the upstream registry when it is down. The images stay in Docker volumes
 `rp-registry-*` when the cache is turned off; `reset` deletes them. Set
 `registry_cache_dockerhub_username` and `registry_cache_dockerhub_password` in `secrets.yml` to
 pull from Docker Hub as that account.
@@ -237,10 +260,11 @@ pod that is not running.
 |---|---|
 | AWS | `tofu -chdir=terraform destroy` |
 | Lima | `./local/lima.sh down` |
-| Your own | `./manage.sh uninstall-rancher`, then on the host `kind delete clusters --all` and `/usr/local/bin/rke2-uninstall.sh` |
+| Your own | `./manage.sh deploy -e '{"downstream_clusters": []}'`, `./manage.sh uninstall-rancher`, then on the host `/usr/local/bin/rke2-uninstall.sh` |
 
 `uninstall-rancher` keeps RKE2 and the downstream clusters; the next `deploy` reinstalls Rancher
-and re-imports them.
+and re-imports the kind clusters. Clusters provisioned by Rancher have not been tested across a
+reinstall; remove them from `downstream_clusters` and deploy before uninstalling.
 
 ## Reference
 
@@ -273,7 +297,7 @@ Settings and pinned versions live in
 | `rancher_image_tag` | | Rancher image tag, such as `head` or `v2.15-head`; `rancher_image` replaces `rancher/rancher`. |
 | `rancher_extra_values` | `{}` | Chart values merged over the playbook's own. |
 | `rancher_settings` | `{}` | Rancher settings by name, such as `ui-dashboard-index`. |
-| `downstream_clusters` | `[]` | kind clusters to create and import. |
+| `downstream_clusters` | `[]` | kind clusters to create and import, or (`type: rke2`) clusters for Rancher to provision on Docker containers. |
 | `fleet_apps` | `[]` | Git repositories Fleet deploys to every cluster; `fleet_apps_examples` holds four samples. |
 | `helm_charts` | `[]` | Helm charts for the Rancher cluster; presets `helm_charts_monitoring` and `helm_charts_backup`. |
 | `downstream_metrics_server` | `false` | Install metrics-server in each kind cluster. |
