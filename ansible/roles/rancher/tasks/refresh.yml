@@ -1,0 +1,39 @@
+---
+- name: Read the running Rancher image digest
+  ansible.builtin.command: >-
+    {{ kubectl_bin }} -n cattle-system get pods -l app=rancher
+    -o jsonpath={.items[*].status.containerStatuses[*].imageID}
+  register: rancher_running_image
+  changed_when: false
+
+- name: Read the registry digest
+  when: rancher_image_on_docker_hub | bool
+  block:
+    - name: Get a Docker Hub pull token
+      ansible.builtin.uri:
+        url: >-
+          https://auth.docker.io/token?service=registry.docker.io&scope=repository:{{ rancher_image_repo }}:pull
+        return_content: true
+      register: rancher_registry_token
+      no_log: true
+
+    # HEAD requests do not count against the Docker Hub pull limit.
+    - name: Read the registry digest of tag {{ rancher_image_tag }}
+      ansible.builtin.uri:
+        url: https://registry-1.docker.io/v2/{{ rancher_image_repo }}/manifests/{{ rancher_image_tag }}
+        method: HEAD
+        headers:
+          Authorization: Bearer {{ rancher_registry_token.json.token }}
+          Accept: >-
+            application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,
+            application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json
+      register: rancher_registry_digest
+
+- name: Restart Rancher to pull the newer image
+  ansible.builtin.shell: >-
+    {{ kubectl_bin }} -n cattle-system rollout restart deployment/rancher &&
+    {{ kubectl_bin }} -n cattle-system rollout status deployment/rancher --timeout=15m
+  changed_when: true
+  when: >-
+    not rancher_image_on_docker_hub | bool
+    or rancher_registry_digest.docker_content_digest | default('none') not in rancher_running_image.stdout

@@ -11,3 +11,36 @@ rancher_ingress_class:
 rancher_tls_issuer_cn:
   rancher: dynamiclistener
   letsEncrypt: Let's Encrypt
+
+rancher_image_repo: "{{ rancher_image or 'rancher/rancher' }}"
+# Docker Hub images can be checked for a newer digest; others are restarted on every deploy.
+rancher_image_on_docker_hub: "{{ rancher_image_repo.split('/') | first is not search('[.:]') }}"
+rancher_image_moving: "{{ rancher_image_tag is match('^(head|latest|.*-head)$') }}"
+rancher_target: "{{ rancher_image_tag or 'v' ~ rancher_version }}"
+
+rancher_values: >-
+  {{ rancher_values_base
+     | combine({'image': rancher_values_image} if rancher_values_image else {})
+     | combine(rancher_extra_values, recursive=true) }}
+rancher_values_image: >-
+  {{ ({'repository': rancher_image} if rancher_image else {})
+     | combine({'tag': rancher_image_tag} if rancher_image_tag else {})
+     | combine({'pullPolicy': 'Always'} if rancher_image_moving else {}) }}
+rancher_values_base:
+  hostname: "{{ rancher_hostname }}"
+  replicas: 1
+  bootstrapPassword: "{{ rancher_bootstrap_password }}"
+  ingress:
+    # Explicit, so switching rke2_ingress_controller moves the existing Ingress too.
+    ingressClassName: "{{ rancher_ingress_class[rke2_ingress_controller] }}"
+    tls:
+      source: "{{ rancher_tls_source }}"
+  letsEncrypt:
+    email: "{{ rancher_letsencrypt_email }}"
+    environment: "{{ rancher_letsencrypt_environment }}"
+    ingress:
+      class: "{{ rancher_ingress_class[rke2_ingress_controller] }}"
+  networkExposure: # required by Rancher v2.14+
+    type: ingress
+  rancherNamespaces:
+    enabled: false
