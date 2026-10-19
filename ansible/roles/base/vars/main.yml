@@ -1,6 +1,12 @@
 ---
 base_packages: [curl, git, jq, "{{ 'python3-venv' if ansible_facts.os_family == 'Debian' else 'python3' }}"]
 
+# Longhorn attaches volumes over iSCSI and serves RWX volumes over NFS.
+base_longhorn_packages:
+  Suse: [open-iscsi, nfs-client]
+  Debian: [open-iscsi, nfs-common]
+base_longhorn: "{{ 'longhorn' in helm_charts | map(attribute='name', default='') }}"
+
 base_docker_package:
   Suse: [docker]
   Debian: [docker.io]

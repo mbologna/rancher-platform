@@ -15,6 +15,19 @@
       helm_charts must be a list of {name, chart, repo, version, namespace, values} with lowercase
       DNS-label names, unique per namespace; got {{ helm_charts | map(attribute='name', default='?') }}.
 
+# Some charts generate keys on each render unless given the ones from their first install.
+- name: Read values that the charts generated before
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ item[0].namespace }}"
+    name: "{{ item[1].secret }}"
+  loop: "{{ helm_charts | subelements('reuse_secret_values', skip_missing=true) }}"
+  loop_control:
+    label: "{{ item[0].namespace }}/{{ item[1].secret }} {{ item[1].key }}"
+  register: helm_charts_reused
+  no_log: true
+
 - name: Install or upgrade the Helm charts
   kubernetes.core.helm:
     name: "{{ item.name }}"
@@ -24,12 +37,16 @@
     release_namespace: "{{ item.namespace }}"
     create_namespace: true
     binary_path: "{{ helm_bin }}"
-    values: "{{ item.get('values', {}) }}"
+    values: >-
+      {{ helm_charts_reused_values.get(item.namespace ~ '/' ~ item.name, {})
+         | combine(item.get('values', {}), recursive=true) }}
     wait: true
     timeout: 900s
   loop: "{{ helm_charts }}"
   loop_control:
     label: "{{ item.namespace }}/{{ item.name }} {{ item.version | default('') }}"
+  # Values can hold passwords (harborAdminPassword) and reused keys.
+  no_log: "{{ item.reuse_secret_values is defined or item.get('values', {}) | string is search('(?i)password') }}"
   # helm-diff renders client-side by default, where lookup() returns nothing. Charts that
   # reuse secrets or probe the cluster (rancher-monitoring) would then always differ.
   environment:

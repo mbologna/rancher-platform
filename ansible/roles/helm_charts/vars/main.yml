@@ -6,3 +6,13 @@ helm_charts_wanted: >-
 helm_charts_installed: >-
   {{ (helm_charts_record.resources[0].data.releases | default('') if helm_charts_record.resources else '')
      .splitlines() | select | list }}
+# Values read back for reuse_secret_values, keyed by namespace/release: {value: core.tokenKey} with the
+# Secret's data becomes {core: {tokenKey: ...}}.
+helm_charts_reused_values: >-
+  {% set out = {} %}{% for result in helm_charts_reused.results | default([])
+     if result.resources and result.item[1].key in result.resources[0].data %}{%
+     set release = result.item[0].namespace ~ '/' ~ result.item[0].name %}{%
+     set tree = namespace(value=result.resources[0].data[result.item[1].key] | b64decode) %}{%
+     for key in result.item[1].value.split('.') | reverse %}{% set tree.value = {key: tree.value} %}{% endfor %}{%
+     set _ = out.update({release: out.get(release, {}) | combine(tree.value, recursive=true)}) %}{%
+  endfor %}{{ out }}
