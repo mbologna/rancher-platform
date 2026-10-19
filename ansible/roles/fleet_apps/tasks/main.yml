@@ -91,7 +91,7 @@
         namespace: "{{ item.ingress.namespace | default('default') }}"
         labels: "{{ {fleet_apps_label: 'true'} }}"
       spec:
-        ingressClassName: "{{ rke2_ingress_class }}"
+        ingressClassName: traefik
         rules:
           - host: "{{ item.name }}.{{ fleet_apps_ingress_domain }}"
             http:
