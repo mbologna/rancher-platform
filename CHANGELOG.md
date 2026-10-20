@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.0.0](https://github.com/mbologna/rancher-platform/compare/v1.1.0...v2.0.0) (2026-10-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* hosts deployed with rke2_ingress_controller: ingress-nginx switch to Traefik on the next deploy; RKE2 restarts and the Rancher Ingress moves to class traefik.
+* fleet_gitrepo_enabled and the cluster-status, rancher-logs and port-forward-rancher host scripts are removed.
+
+### Features
+
+* add an optional registry pull-through cache for RKE2 and the kind clusters ([#51](https://github.com/mbologna/rancher-platform/issues/51)) ([28398da](https://github.com/mbologna/rancher-platform/commit/28398da90d4088ae066fea85f470cf99a1dc44e5))
+* add helm_charts list with monitoring and backup presets, and metrics-server on kind ([#50](https://github.com/mbologna/rancher-platform/issues/50)) ([40b147a](https://github.com/mbologna/rancher-platform/commit/40b147aced19b9a3e9146a055db29a78a902e392))
+* add Kubewarden, Longhorn and Harbor chart presets ([#54](https://github.com/mbologna/rancher-platform/issues/54)) ([35c8f29](https://github.com/mbologna/rancher-platform/commit/35c8f29ac22cd30577db8833869126565215bf47))
+* add snapshot, snapshots and restore commands ([#46](https://github.com/mbologna/rancher-platform/issues/46)) ([b9d473c](https://github.com/mbologna/rancher-platform/commit/b9d473c6100f08034ca44fea57c0b04e45474acb))
+* expose Fleet apps through Ingress and remove dropped cluster labels ([#49](https://github.com/mbologna/rancher-platform/issues/49)) ([559ff0c](https://github.com/mbologna/rancher-platform/commit/559ff0cd175fa867f0c38af1b8ef360bac98d2f5))
+* let Rancher provision RKE2 clusters on Docker-container nodes ([#53](https://github.com/mbologna/rancher-platform/issues/53)) ([223e508](https://github.com/mbologna/rancher-platform/commit/223e5089c3e5eae56178e23acdd8c430202f6beb))
+* run Rancher release candidates, nightly builds and settings ([#48](https://github.com/mbologna/rancher-platform/issues/48)) ([fccff0b](https://github.com/mbologna/rancher-platform/commit/fccff0b571da1b832c5c59ca0d86122f5fc8ded6))
+
+
+### Bug Fixes
+
+* restart workloads after an etcd restore ([#47](https://github.com/mbologna/rancher-platform/issues/47)) ([8e4e88e](https://github.com/mbologna/rancher-platform/commit/8e4e88e145ba47aaaf5ef539fd58a577a0de1228))
+
+
+### Code Refactoring
+
+* drop host helper scripts and fold fleet_gitrepo into fleet_apps ([#44](https://github.com/mbologna/rancher-platform/issues/44)) ([5bc6a46](https://github.com/mbologna/rancher-platform/commit/5bc6a462c35d7c96301f7e39012ae7c2f74c91bb))
+* drop the ingress-nginx option and always use Traefik ([#52](https://github.com/mbologna/rancher-platform/issues/52)) ([62b4264](https://github.com/mbologna/rancher-platform/commit/62b4264d21c8fae29ed340d1b8a7d7e732bd947d))
+
 ## [1.1.0](https://github.com/mbologna/rancher-platform/compare/v1.0.0...v1.1.0) (2026-10-18)
 
 
