@@ -89,6 +89,11 @@
       vars:
         ansible_python_interpreter: "{{ k8s_python }}"
       tags: [rancher]
+    - role: rancher_ai
+      when: rancher_ai_enabled | bool
+      vars:
+        ansible_python_interpreter: "{{ k8s_python }}"
+      tags: [rancher_ai]
     - role: downstream_clusters
       vars:
         ansible_python_interpreter: "{{ k8s_python }}"
@@ -131,7 +136,7 @@
       tags: [never, restore]
 
     # Runs only with --tags uninstall (./manage.sh uninstall-rancher).
-    - name: Remove Rancher and cert-manager (RKE2 and the downstream clusters stay)
+    - name: Remove Rancher, Rancher AI and cert-manager (RKE2 and the downstream clusters stay)
       ansible.builtin.script: files/uninstall-rancher.sh
       changed_when: true
       tags: [never, uninstall]

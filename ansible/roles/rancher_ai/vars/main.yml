@@ -1,0 +1,20 @@
+---
+rancher_ai_config_data: "{{ (rancher_ai_config.resources | first | default({})).get('data', {}) }}"
+rancher_ai_secret_data: "{{ (rancher_ai_secret.resources | first | default({})).get('data', {}) }}"
+rancher_ai_config_keys:
+  activeLlm: ACTIVE_LLM
+  ollamaLlmModel: OLLAMA_MODEL
+  geminiLlmModel: GEMINI_MODEL
+  openaiLlmModel: OPENAI_MODEL
+  bedrockLlmModel: BEDROCK_MODEL
+  genericOpenaiLlmModel: GENERIC_OPENAI_MODEL
+rancher_ai_secret_keys:
+  ollamaUrl: OLLAMA_URL
+  googleApiKey: GOOGLE_API_KEY
+  openaiApiKey: OPENAI_API_KEY
+  openaiUrl: OPENAI_URL
+  genericOpenaiUrl: GENERIC_OPENAI_URL
+  genericOpenaiApiKey: GENERIC_OPENAI_API_KEY
+  langfuseSecretKey: LANGFUSE_SECRET_KEY
+  langfusePublicKey: LANGFUSE_PUBLIC_KEY
+  langfuseHost: LANGFUSE_HOST

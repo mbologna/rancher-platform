@@ -50,6 +50,9 @@
     summary_lines:
       - "Rancher UI:  https://{{ rancher_hostname }}  (admin / rancher_bootstrap_password from secrets.yml)"
       - "Kubeconfig:  export KUBECONFIG={{ local_kubeconfig }}"
+      - >-
+        Rancher AI: {{ 'installed; configure the LLM in Global Settings -> AI Assistant'
+                        if rancher_ai_enabled | bool else 'not managed (rancher_ai_enabled=false)' }}
       - "SSH:         ssh {{ ansible_user | default('root') }}@{{ ansible_host }}  (kubectl works out of the box)"
       - >-
         Downstream:  {{ (downstream_clusters | select('string') | list

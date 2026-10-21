@@ -3,7 +3,7 @@
 set -euo pipefail
 # The play sets KUBECONFIG and PATH.
 
-echo "--- Removing Rancher and cert-manager (RKE2 stays) ---"
+echo "--- Removing Rancher, Rancher AI and cert-manager (RKE2 stays) ---"
 # Stop Rancher first so it does not reinstall the apps removed below.
 if kubectl get deployment rancher -n cattle-system >/dev/null 2>&1; then
     kubectl scale deployment rancher -n cattle-system --replicas=0
@@ -23,6 +23,8 @@ for ns in cattle-fleet-system cattle-system rancher-operator-system; do
 done
 kubectl delete apiservice v1.ext.cattle.io --ignore-not-found
 
+helm uninstall rancher-ai-ui -n cattle-ui-plugin-system --wait --ignore-not-found
+helm uninstall rancher-ai-agent -n cattle-ai-agent-system --wait --ignore-not-found
 helm uninstall cert-manager -n cert-manager --wait --ignore-not-found
 kubectl delete namespace cattle-system cert-manager --ignore-not-found
 echo "--- Done ---"

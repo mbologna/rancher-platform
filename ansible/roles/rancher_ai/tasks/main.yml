@@ -1,0 +1,106 @@
+---
+- name: Read the AI provider configuration
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: cattle-ai-agent-system
+    name: llm-config
+  register: rancher_ai_config
+  no_log: true
+
+- name: Read the AI provider credentials
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: cattle-ai-agent-system
+    name: llm-secret
+  register: rancher_ai_secret
+  no_log: true
+
+# The chart renders empty provider settings by default. Pass back UI-managed values so
+# helm-diff and upgrades do not erase them.
+- name: Initialise the preserved AI values
+  ansible.builtin.set_fact:
+    rancher_ai_values: {}
+  no_log: true
+
+- name: Preserve AI model settings
+  ansible.builtin.set_fact:
+    rancher_ai_values: >-
+      {{ rancher_ai_values | combine({item.key: rancher_ai_config_data.get(item.value, '')}) }}
+  loop: "{{ rancher_ai_config_keys | dict2items }}"
+  no_log: true
+
+- name: Preserve AI credentials and endpoints
+  ansible.builtin.set_fact:
+    rancher_ai_values: >-
+      {{ rancher_ai_values | combine({item.key: rancher_ai_secret_data.get(item.value, '') | b64decode}) }}
+  loop: "{{ rancher_ai_secret_keys | dict2items }}"
+  no_log: true
+
+- name: Install or upgrade the Rancher AI agent and MCP
+  kubernetes.core.helm:
+    name: rancher-ai-agent
+    chart_ref: oci://registry.suse.com/rancher/charts/rancher-ai-agent
+    chart_version: "{{ rancher_ai_agent_version }}"
+    release_namespace: cattle-ai-agent-system
+    create_namespace: true
+    binary_path: "{{ helm_bin }}"
+    values: >-
+      {{ rancher_ai_values | combine({'awsBedrock': {
+           'bearerToken': rancher_ai_secret_data.get('AWS_BEARER_TOKEN_BEDROCK', '') | b64decode,
+           'region': rancher_ai_secret_data.get('AWS_REGION', '') | b64decode,
+           'url': rancher_ai_secret_data.get('BEDROCK_URL', '') | b64decode}}) }}
+    wait: true
+    timeout: 600s
+  no_log: true
+
+- name: Enable Rancher UI extensions
+  kubernetes.core.k8s:
+    api_version: management.cattle.io/v3
+    kind: Feature
+    name: uiextension
+    state: patched
+    definition:
+      spec:
+        value: true
+
+- name: Wait for the UI extension API
+  kubernetes.core.k8s_info:
+    api_version: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    name: uiplugins.catalog.cattle.io
+    wait: true
+    wait_condition:
+      type: Established
+      status: "True"
+    wait_timeout: 60
+  register: rancher_ai_ui_crd
+  until: rancher_ai_ui_crd.resources | default([]) | length > 0
+  retries: 20
+  delay: 5
+
+- name: Install or upgrade the Rancher AI UI extension
+  kubernetes.core.helm:
+    name: rancher-ai-ui
+    chart_ref: rancher-ai-ui
+    chart_repo_url: https://raw.githubusercontent.com/rancher/ui-plugin-charts/main
+    chart_version: "{{ rancher_ai_ui_version }}"
+    release_namespace: cattle-ui-plugin-system
+    create_namespace: true
+    binary_path: "{{ helm_bin }}"
+    wait: true
+    timeout: 300s
+
+- name: Wait for the Rancher AI UI extension to be ready
+  kubernetes.core.k8s_info:
+    api_version: catalog.cattle.io/v1
+    kind: UIPlugin
+    namespace: cattle-ui-plugin-system
+    name: rancher-ai-ui
+  register: rancher_ai_ui_plugin
+  until:
+    - rancher_ai_ui_plugin.resources | default([]) | length > 0
+    - (rancher_ai_ui_plugin.resources | first).get('status', {}).get('ready', false)
+  retries: 60
+  delay: 5

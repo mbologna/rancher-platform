@@ -18,7 +18,7 @@ Commands:
   snapshot [name]    Save an etcd snapshot of RKE2 and Rancher (default name: manual)
   snapshots          List etcd snapshots
   restore <name>     Restore RKE2 and Rancher from a snapshot (kind clusters keep running)
-  uninstall-rancher  Remove Rancher and cert-manager (RKE2 stays)
+  uninstall-rancher  Remove Rancher, Rancher AI and cert-manager (RKE2 stays)
   help               Show this help
 
 Extra options are passed to Ansible, e.g.:

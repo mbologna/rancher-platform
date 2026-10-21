@@ -62,13 +62,30 @@ cp group_vars/all/secrets.yml.example group_vars/all/secrets.yml
 
 The remaining `./manage.sh` commands also run from `ansible/`.
 
-`deploy` installs RKE2, cert-manager and Rancher. Open `https://<rancher_hostname>` and log in as
+`deploy` installs RKE2, cert-manager, Rancher and Rancher AI. Open `https://<rancher_hostname>` and log in as
 `admin`. To encrypt the password file, run `ansible-vault encrypt group_vars/all/secrets.yml`;
 `manage.sh` then asks for the vault password.
 
 `deploy` stops before changing anything if the host already runs RKE2 or K3s installed by other
 means, or if another service holds port 80, 443, 6443, 9345 or 10250. `./manage.sh reset` wipes
 such a host and deploys.
+
+### Rancher AI
+
+Each host's Rancher management cluster gets [Liz, the Rancher AI Assistant](https://documentation.suse.com/cloudnative/rancher-ai/1.1.0/en/quick-start.html):
+the agent and MCP in `cattle-ai-agent-system`, and the UI extension in `cattle-ui-plugin-system`.
+Reload the Rancher UI after installation, then configure a provider and model under
+**Global Settings → AI Assistant**. No Ollama server, model or provider credentials are installed.
+Later deploys preserve provider settings and credentials saved through the UI.
+
+AI 1.1.0's agent chart declares Rancher 2.13 and Kubernetes <1.35 in its
+[catalogue annotations](https://github.com/rancher/rancher-ai-agent/blob/v1.1.0/chart/agent/Chart.yaml),
+although the quick start says Rancher 2.13 or above. This project installs it directly with Helm on
+the pinned Rancher 2.15/Kubernetes 1.36 platform. Agent/MCP readiness and UI extension loading were
+verified on that platform; LLM requests have not been tested.
+The [UI extension](https://github.com/rancher/ui-plugin-charts/blob/main/charts/rancher-ai-ui/1.1.0/Chart.yaml)
+is marked Prime-only. Set `rancher_ai_enabled: false` to skip managing AI; this leaves an existing
+installation in place.
 
 ## 3. Give Rancher clusters to manage (optional)
 
@@ -278,7 +295,7 @@ pod that is not running.
 | Lima | `./local/lima.sh down` |
 | Your own | `./manage.sh deploy -e '{"downstream_clusters": []}'`, `./manage.sh uninstall-rancher`, then on the host `/usr/local/bin/rke2-uninstall.sh` |
 
-`uninstall-rancher` keeps RKE2 and the downstream clusters; the next `deploy` reinstalls Rancher
+`uninstall-rancher` removes Rancher AI and keeps RKE2 and the downstream clusters; the next `deploy` reinstalls Rancher
 and re-imports the kind clusters. Clusters provisioned by Rancher have not been tested across a
 reinstall; remove them from `downstream_clusters` and deploy before uninstalling.
 
@@ -297,7 +314,7 @@ Run from `ansible/`. Extra arguments go to `ansible-playbook`.
 | `./manage.sh snapshot [name]` | Save an etcd snapshot (default name `manual`). |
 | `./manage.sh snapshots` | List etcd snapshots. |
 | `./manage.sh restore <name>` | Restore RKE2 and Rancher from a snapshot. |
-| `./manage.sh uninstall-rancher` | Remove Rancher and cert-manager. |
+| `./manage.sh uninstall-rancher` | Remove Rancher, Rancher AI and cert-manager. |
 | `./manage.sh reset` | **Delete all cluster and Docker data** on the host, including RKE2, K3s, kind and k3d installed by anything, then deploy. |
 
 ### Configuration
@@ -313,6 +330,7 @@ Settings and pinned versions live in
 | `rancher_image_tag` | | Rancher image tag, such as `head` or `v2.15-head`; `rancher_image` replaces `rancher/rancher`. |
 | `rancher_extra_values` | `{}` | Chart values merged over the playbook's own. |
 | `rancher_settings` | `{}` | Rancher settings by name, such as `ui-dashboard-index`. |
+| `rancher_ai_enabled` | `true` | Install the Rancher AI agent/MCP and UI extension; configure the LLM in the UI. |
 | `downstream_clusters` | `[]` | kind clusters to create and import, or (`type: rke2`) clusters for Rancher to provision on Docker containers. |
 | `fleet_apps` | `[]` | Git repositories Fleet deploys to every cluster; `fleet_apps_examples` holds four samples. |
 | `helm_charts` | `[]` | Helm charts for the Rancher cluster; presets `helm_charts_monitoring`, `helm_charts_backup`, `helm_charts_kubewarden`, `helm_charts_longhorn`, `helm_charts_harbor`. |
@@ -341,7 +359,9 @@ Every pull request runs the same hooks in the [Lint workflow](.github/workflows/
 trivy and zizmor in the [Security workflow](.github/workflows/security.yml). Pull requests that
 touch `ansible/` also run the [E2E workflow](.github/workflows/e2e.yml): it deploys with one
 downstream cluster and podinfo as a Fleet app on the GitHub runner, re-runs expecting no changes,
-and checks that Rancher answers and podinfo runs on both clusters. E2E also runs every Monday on
+and checks that Rancher answers, the AI agent/MCP and UI extension are installed, AI provider settings
+survive the re-run, and podinfo runs on both clusters.
+E2E also runs every Monday on
 Rancher `head`, pinned to that build's commit tag so both deploys use the same image; run it by
 hand with another tag from *Actions → E2E → Run workflow* (`rancher_image_tag`). No workflow uses
 cloud resources.

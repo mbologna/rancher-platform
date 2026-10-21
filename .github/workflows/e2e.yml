@@ -88,6 +88,19 @@ jobs:
       - name: Deploy
         run: ./manage.sh deploy
 
+      - name: Save AI settings as the UI would
+        run: |
+          kubeconfig=/etc/rancher/rke2/rke2.yaml
+          sudo /usr/local/bin/kubectl --kubeconfig "${kubeconfig}" -n cattle-ai-agent-system \
+            patch configmap llm-config --type merge -p '{"data":{"OLLAMA_MODEL":"gpt-oss:20b"}}'
+          sudo /usr/local/bin/kubectl --kubeconfig "${kubeconfig}" -n cattle-ai-agent-system \
+            patch secret llm-secret --type merge \
+            -p '{"stringData":{"OLLAMA_URL":"http://ollama.example.invalid:11434"}}'
+
+      # Adopt the UI-managed settings into the Helm release before checking idempotence.
+      - name: Deploy with saved AI settings
+        run: ./manage.sh deploy --tags rancher_ai
+
       - name: Deploy again and expect no changes
         run: |
           ./manage.sh deploy | tee "${RUNNER_TEMP}/rerun.log"
@@ -95,6 +108,23 @@ jobs:
 
       - name: Show status
         run: ./manage.sh status
+
+      - name: Check that Rancher AI is installed without a provider
+        run: |
+          kubeconfig=/etc/rancher/rke2/rke2.yaml
+          for deployment in rancher-ai-agent rancher-mcp-server; do
+            sudo /usr/local/bin/kubectl --kubeconfig "${kubeconfig}" -n cattle-ai-agent-system \
+              rollout status "deployment/${deployment}" --timeout=120s
+          done
+          sudo /usr/local/bin/kubectl --kubeconfig "${kubeconfig}" -n cattle-ui-plugin-system \
+            get uiplugin rancher-ai-ui -o json | \
+            jq -e '.spec.plugin.name == "rancher-ai-ui" and .status.ready == true'
+          sudo /usr/local/bin/kubectl --kubeconfig "${kubeconfig}" -n cattle-ai-agent-system \
+            get configmap llm-config -o json | \
+            jq -e '.data.ACTIVE_LLM == "" and .data.OLLAMA_MODEL == "gpt-oss:20b"'
+          sudo /usr/local/bin/kubectl --kubeconfig "${kubeconfig}" -n cattle-ai-agent-system \
+            get secret llm-secret -o json | \
+            jq -e '(.data.OLLAMA_URL | @base64d) == "http://ollama.example.invalid:11434"'
 
       - name: Check that Rancher answers
         run: |
