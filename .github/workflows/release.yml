@@ -12,9 +12,7 @@ permissions:
 
 jobs:
   release-please:
-    runs-on: ubuntu-24.04
+    uses: mbologna/.github/.github/workflows/release-please.yml@5758196b1c58ee6525a87f27d515e2f02495e2cc # main
     permissions:
       contents: write
       pull-requests: write
-    steps:
-      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0

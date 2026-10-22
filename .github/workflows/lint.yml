@@ -10,7 +10,20 @@ permissions:
   contents: read
 
 jobs:
-  lint:
+  # OpenTofu fmt/validate, tflint, yamllint, actionlint and a trivy config scan,
+  # from mbologna/.github's shared Terraform workflow.
+  terraform:
+    uses: mbologna/.github/.github/workflows/terraform-ci.yml@5758196b1c58ee6525a87f27d515e2f02495e2cc # main
+    permissions:
+      contents: read
+      security-events: write
+    with:
+      working_dir: terraform
+      opentofu_version: "1.13.1"
+
+  # The rest of the pre-commit hooks (ansible-lint, shellcheck, yamllint, ...).
+  # The Terraform ones are skipped: the job above runs them with pinned tools.
+  pre-commit:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -21,14 +34,9 @@ jobs:
         with:
           python-version: "3.14"
 
-      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
-        with:
-          tofu_wrapper: false
-
-      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
-
-      - name: Validate Terraform
-        working-directory: terraform
-        run: tofu init -backend=false -input=false && tofu validate
-
-      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+      - name: Run pre-commit
+        env:
+          SKIP: terraform_fmt,terraform_tflint
+        run: |
+          pip install -r .github/requirements-lint.txt
+          pre-commit run --all-files --show-diff-on-failure
