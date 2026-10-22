@@ -1,6 +1,6 @@
 ---
-# Scans the Terraform for misconfigurations (trivy) and the workflows for injection and credential
-# risks (zizmor). Findings appear under Security > Code scanning and on pull requests.
+# Scans the workflows for injection and credential risks (zizmor). Findings appear under
+# Security > Code scanning and on pull requests. The Terraform trivy scan runs in lint.yml.
 name: Security
 
 on:
@@ -14,30 +14,6 @@ permissions:
   contents: read
 
 jobs:
-  trivy:
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: config
-          scan-ref: .
-          severity: MEDIUM,HIGH,CRITICAL
-          limit-severities-for-sarif: true
-          format: sarif
-          output: trivy.sarif
-
-      - uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
-        with:
-          sarif_file: trivy.sarif
-          category: trivy
-
   zizmor:
     runs-on: ubuntu-24.04
     permissions:
