@@ -58,7 +58,7 @@
       "allowedVersions": "<111"
     },
     {
-      "description": "Minor and major platform updates need a human decision on compatibility and upgrade order. Patches automerge after the E2E workflow deploys them on the runner. The empty suffix drops the shared preset's [automerge] title tag, which is set by update type",
+      "description": "Minor and major platform updates need a human decision on compatibility and upgrade order. Patches automerge after the E2E workflow deploys them on the runner. The manual-review label (replacing the automerge one the patch/minor rules set) is what the shared preset's PR note and the PR list read",
       "matchDepNames": [
         "rancher/rke2",
         "rancher",
@@ -69,7 +69,7 @@
         "major"
       ],
       "automerge": false,
-      "commitMessageSuffix": ""
+      "labels": ["dependencies", "manual-review"]
     }
   ]
 }
