@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   release-please:
-    uses: mbologna/.github/.github/workflows/release-please.yml@5758196b1c58ee6525a87f27d515e2f02495e2cc # main
+    uses: mbologna/.github/.github/workflows/release-please.yml@34c6d98db62827e2f7d2255e8f14f68ae640f578 # main
     permissions:
       contents: write
       pull-requests: write

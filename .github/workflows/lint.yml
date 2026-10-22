@@ -13,7 +13,7 @@ jobs:
   # OpenTofu fmt/validate, tflint, yamllint, actionlint and a trivy config scan,
   # from mbologna/.github's shared Terraform workflow.
   terraform:
-    uses: mbologna/.github/.github/workflows/terraform-ci.yml@5758196b1c58ee6525a87f27d515e2f02495e2cc # main
+    uses: mbologna/.github/.github/workflows/terraform-ci.yml@34c6d98db62827e2f7d2255e8f14f68ae640f578 # main
     # contents: write only because the shared workflow's terraform-docs job
     # declares it; that job is off here (enable_terraform_docs defaults to false).
     permissions:
