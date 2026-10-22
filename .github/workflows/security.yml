@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   trivy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write
@@ -39,7 +39,7 @@ jobs:
           category: trivy
 
   zizmor:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write
