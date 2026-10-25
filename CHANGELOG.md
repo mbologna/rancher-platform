@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/mbologna/rancher-platform/compare/v2.0.0...v2.1.0) (2026-10-25)
+
+
+### Features
+
+* install Rancher AI by default ([2bc6278](https://github.com/mbologna/rancher-platform/commit/2bc627889774a1a3d8c7c336e0496b0590fed174))
+
 ## [2.0.0](https://github.com/mbologna/rancher-platform/compare/v1.1.0...v2.0.0) (2026-10-20)
 
 
