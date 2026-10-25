@@ -1,5 +1,8 @@
 # Changelog
 
+Releases after v2.0.0 have their notes on the
+[Releases page](https://github.com/mbologna/rancher-platform/releases).
+
 ## [2.0.0](https://github.com/mbologna/rancher-platform/compare/v1.1.0...v2.0.0) (2026-10-20)
 
 

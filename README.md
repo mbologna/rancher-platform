@@ -367,6 +367,8 @@ hand with another tag from *Actions → E2E → Run workflow* (`rancher_image_ta
 cloud resources.
 
 Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/); the
-[Release workflow](.github/workflows/release.yml) turns them into `CHANGELOG.md` and version tags.
+[Release workflow](.github/workflows/release.yml) tags a version when a release-worthy commit lands
+on `main` and publishes its notes on the [Releases page](https://github.com/mbologna/rancher-platform/releases);
+`CHANGELOG.md` holds the history up to v2.0.0.
 
 Licensed under the [Apache License 2.0](LICENSE).
