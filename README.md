@@ -367,8 +367,9 @@ hand with another tag from *Actions → E2E → Run workflow* (`rancher_image_ta
 cloud resources.
 
 Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/); the
-[Release workflow](.github/workflows/release.yml) tags a version every Monday at 06:00 UTC when
-anything landed on `main`, and publishes its notes on the [Releases page](https://github.com/mbologna/rancher-platform/releases);
-run it by hand to release at once. `CHANGELOG.md` holds the history up to v2.0.0.
+[Release workflow](.github/workflows/release.yml) tags a version every Monday at 06:00 UTC when a
+`feat`, `fix`, `perf`, `revert` or breaking commit landed on `main` (a Renovate `fix(security)` update
+is released at once), and publishes its notes on the [Releases page](https://github.com/mbologna/rancher-platform/releases);
+run it by hand to release at once. The Releases page holds every version's notes.
 
 Licensed under the [Apache License 2.0](LICENSE).
