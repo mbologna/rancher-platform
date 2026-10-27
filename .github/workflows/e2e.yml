@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     env:
       REQUESTED_TAG: ${{ github.event_name == 'schedule' && 'head' || inputs.rancher_image_tag }}
