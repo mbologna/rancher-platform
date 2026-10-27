@@ -1,3 +1,4 @@
+---
 name: PR title
 
 # The squash-merge commit takes the PR title as its subject, and auto-release
