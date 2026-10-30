@@ -15,7 +15,7 @@ rke2_etcd_s3_folder: ""
 rke2_etcd_s3_endpoint: s3.amazonaws.com
 
 # renovate: datasource=github-releases depName=cert-manager/cert-manager
-cert_manager_version: "v1.21.2"
+cert_manager_version: "v1.21.3"
 
 # Rancher installs Turtles itself (2.15.2: Turtles v0.27.2, core CAPI v1.13.3).
 # renovate: datasource=helm depName=rancher registryUrl=https://releases.rancher.com/server-charts/stable
