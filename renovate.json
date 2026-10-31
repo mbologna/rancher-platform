@@ -17,6 +17,13 @@
   ],
   "packageRules": [
     {
+      "description": "The E2E deploy runs Ansible on the setup-python interpreter, and ansible-core 2.21 does not run on Python 3.15 (AttributeError: module 'dataclasses' has no attribute '_is_type'). Hold e2e.yml below 3.15; raise this with ansible-core 2.22 in ansible/requirements-ci.txt",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["python"],
+      "matchFileNames": [".github/workflows/e2e.yml"],
+      "allowedVersions": "<3.15"
+    },
+    {
       "description": "Keep required_version a compatibility floor (OpenTofu releases lag Terraform's numbering)",
       "matchManagers": [
         "terraform"
