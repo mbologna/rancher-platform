@@ -19,7 +19,7 @@ cert_manager_version: "v1.21.3"
 
 # Rancher installs Turtles itself (2.15.2: Turtles v0.27.2, core CAPI v1.13.3).
 # renovate: datasource=helm depName=rancher registryUrl=https://releases.rancher.com/server-charts/stable
-rancher_version: "2.15.2"
+rancher_version: "2.15.3"
 # Chart channel: stable, latest (adds release candidates such as 2.15.2-rc1) or alpha.
 rancher_chart_channel: stable
 rancher_chart_repo: https://releases.rancher.com/server-charts/{{ rancher_chart_channel }}
@@ -183,7 +183,7 @@ helm_charts: []
 # renovate: datasource=helm depName=rancher-monitoring registryUrl=https://charts.rancher.io
 rancher_monitoring_version: "110.0.2+up80.9.1-rancher.22"
 # renovate: datasource=helm depName=rancher-backup registryUrl=https://charts.rancher.io
-rancher_backup_version: "110.0.2+up11.0.3"
+rancher_backup_version: "110.0.3+up11.0.4"
 # Prometheus, Grafana and Alertmanager, shown under Monitoring in the Rancher UI. Needs about 2 GB RAM.
 helm_charts_monitoring:
   - {name: rancher-monitoring-crd, repo: "https://charts.rancher.io", version: "{{ rancher_monitoring_version }}",
