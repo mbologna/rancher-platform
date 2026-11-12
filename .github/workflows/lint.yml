@@ -21,7 +21,7 @@ jobs:
       security-events: write
     with:
       working_dir: terraform
-      opentofu_version: "1.13.2"
+      opentofu_version: "1.13.8"
 
   # The rest of the pre-commit hooks (ansible-lint, shellcheck, yamllint, ...).
   # The Terraform ones are skipped: the job above runs them with pinned tools.
