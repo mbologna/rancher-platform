@@ -2,7 +2,7 @@
 # Central configuration. Every version pin below is tracked by Renovate (see renovate.json).
 
 # renovate: datasource=github-releases depName=rancher/rke2
-rke2_version: "v1.36.5+rke2r1"
+rke2_version: "v1.36.6+rke2r1"
 # etcd snapshots: RKE2 writes them to /var/lib/rancher/rke2/server/db/snapshots on the host.
 rke2_etcd_snapshot_schedule: "0 */12 * * *"
 rke2_etcd_snapshot_retention: 5
