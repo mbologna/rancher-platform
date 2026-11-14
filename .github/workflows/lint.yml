@@ -13,7 +13,7 @@ jobs:
   # OpenTofu fmt/validate, tflint, yamllint, actionlint and a trivy config scan,
   # from mbologna/.github's shared Terraform workflow.
   terraform:
-    uses: mbologna/.github/.github/workflows/terraform-ci.yml@ee5bcf8cd73154eaccd48e386919f73d2dd832e2 # main
+    uses: mbologna/.github/.github/workflows/terraform-ci.yml@09bc881c557dd70bead1932e686f5dff713d4be4 # main
     # security-events: the Trivy IaC scan's SARIF upload.
     permissions:
       contents: read
