@@ -4,11 +4,11 @@
 # The weekly run uses Rancher's head build; a failure there is mailed to the workflow owner.
 name: E2E
 
+# A required check: every pull request reports it, and the changes job skips the deploy (a
+# skipped job passes the check) when nothing it tests changed. Renovate's patch automerge waits
+# for it.
 on:
   pull_request:
-    paths:
-      - ansible/**
-      - .github/workflows/e2e.yml
   schedule:
     - cron: "17 4 * * 1"
   workflow_dispatch:
@@ -26,7 +26,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-26.04
+    permissions:
+      pull-requests: read
+    outputs:
+      e2e: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - name: Check whether the pull request touches what the deploy tests
+        id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -z "${PR}" ]; then
+            echo "e2e=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          files=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" --jq '.[].filename')
+          echo "${files}"
+          if grep -qE '^(ansible/|\.github/workflows/e2e\.yml$)' <<< "${files}"; then
+            echo "e2e=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "e2e=false" >> "${GITHUB_OUTPUT}"
+          fi
+
   deploy:
+    name: e2e
+    needs: changes
+    # Runs when the changes job fails too, so a broken filter cannot pass the required check.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.e2e == 'true') }}
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     env:

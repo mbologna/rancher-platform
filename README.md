@@ -360,7 +360,9 @@ trivy and zizmor in the [Security workflow](.github/workflows/security.yml). Pul
 touch `ansible/` also run the [E2E workflow](.github/workflows/e2e.yml): it deploys with one
 downstream cluster and podinfo as a Fleet app on the GitHub runner, re-runs expecting no changes,
 and checks that Rancher answers, the AI agent/MCP and UI extension are installed, AI provider settings
-survive the re-run, and podinfo runs on both clusters.
+survive the re-run, and podinfo runs on both clusters. Its `e2e` check is required: on a pull request
+that doesn't touch `ansible/` the deploy is skipped and the check passes, so Renovate's patch
+automerge always waits for the deploy when it matters.
 E2E also runs every Monday on
 Rancher `head`, pinned to that build's commit tag so both deploys use the same image; run it by
 hand with another tag from *Actions → E2E → Run workflow* (`rancher_image_tag`). No workflow uses
