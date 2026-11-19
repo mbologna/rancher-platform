@@ -368,7 +368,7 @@ Rancher `head`, pinned to that build's commit tag so both deploys use the same i
 hand with another tag from *Actions → E2E → Run workflow* (`rancher_image_tag`). No workflow uses
 cloud resources.
 
-Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/); the
+Every commit follows [Conventional Commits](https://www.conventionalcommits.org/) (CI lints each one); the
 [Release workflow](.github/workflows/release.yml) tags a version every Monday at 06:00 UTC when a
 `feat`, `fix`, `perf`, `revert` or breaking commit landed on `main` (a Renovate `fix(security)` update
 is released at once), and publishes its notes on the [Releases page](https://github.com/mbologna/rancher-platform/releases);
