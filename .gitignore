@@ -7,6 +7,10 @@ ansible/collections/
 # Secrets — never commit credentials
 ansible/group_vars/all/secrets.yml
 
+# Python bytecode
+__pycache__/
+*.py[co]
+
 # Python virtual environments
 /venv/
 /.venv/
