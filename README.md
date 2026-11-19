@@ -8,9 +8,26 @@ rancher-platform deploys a [Rancher](https://www.rancher.com/) management cluste
 host in about seven minutes. Ansible installs RKE2 (Kubernetes v1.36), cert-manager and Rancher
 2.15 on a host you have, on an EC2 instance that OpenTofu creates, or on a Lima VM on a Mac.
 Rancher answers at `rancher.<ip>.sslip.io` or a name you choose, with a self-signed or Let's
-Encrypt certificate, and `deploy` writes one kubeconfig with a context per cluster. Versions are
-pinned in [`config.yml`](ansible/group_vars/all/config.yml) and
-[`fleet/platform/`](fleet/platform/), and Renovate updates them.
+Encrypt certificate, and `deploy` writes one kubeconfig with a context per cluster.
+
+The same playbook can also:
+
+- import kind clusters into Rancher, or have Rancher provision RKE2 clusters on Docker
+  containers
+- deploy apps from Git repositories to every cluster with Fleet
+- install Cluster API providers for Rancher Turtles, with ClusterClasses and example clusters
+  on Docker, AWS and EKS
+- install Liz, the Rancher AI Assistant (on by default)
+- install Monitoring, Backups, Kubewarden, Longhorn, Harbor or any other Helm chart on the
+  Rancher cluster
+- take etcd snapshots every 12 hours, upload them to S3 and restore from them (on by default)
+- upgrade RKE2 one minor at a time and Rancher with a snapshot first, or run release
+  candidates, alphas and nightly builds
+- run a pull-through image cache for RKE2 and the downstream clusters
+
+[Features](#features) links to a page for each. Versions are pinned in
+[`config.yml`](ansible/group_vars/all/config.yml) and [`fleet/platform/`](fleet/platform/), and
+Renovate updates them.
 
 ## Quick start
 
