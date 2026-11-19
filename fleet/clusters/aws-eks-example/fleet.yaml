@@ -1,0 +1,9 @@
+# The names Fleet generated while this path was at the repository root, pinned so moving it under
+# fleet/ (2026-11-19) kept the bundle and its Helm release. validate-repo.py checks them.
+name: capi-cluster-templates-clusters-aws-eks-example
+helm:
+  releaseName: capi-cluster-templates-clusters-aws-eks-example
+defaultNamespace: default
+
+dependsOn:
+  - name: capi-cluster-templates-identities-aws

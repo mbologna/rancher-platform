@@ -4,6 +4,8 @@ project_dir: ansible
 exclude_paths:
   - .github/
   - terraform/
+  # The Cluster API templates: Kubernetes manifests, not Ansible (yamllint covers them).
+  - fleet/
   - renovate.json
   - ansible/collections/
 mock_roles: []
