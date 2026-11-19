@@ -83,7 +83,8 @@ imported into Rancher. The EKS example has not been live-tested.
    ```
 
    The Ansible deploy can do this step instead: add `fleet_apps_capi_templates` to
-   `fleet_apps` (see the main README), pointing its `repo` at your fork.
+   `fleet_apps` (see [Cluster API](../README.md#cluster-api) in the main README), pointing its
+   `repo` at your fork.
 
 Fleet applies the identity, the ClusterClasses and then the clusters, in dependency order.
 The dependency names include the GitRepo name, `capi-cluster-templates`; rename both together.
@@ -198,7 +199,7 @@ do not cover CEL rules, admission defaults or a real bootstrap.
 GitHub Actions runs three workflows:
 
 - **Fleet manifests** checks the provider pins against the Turtles catalogue, then runs the
-  schema validation and unit tests on every push and pull request.
+  schema validation and unit tests on every pull request and every push to `main`.
 - **Fleet platform check** builds a disposable management cluster on the runner with this
   repository's Ansible, installs this branch's `providers-values.yaml` and runs
   `check-platform.py`. It then registers `gitrepo.yaml`, pointed at the commit under test and
