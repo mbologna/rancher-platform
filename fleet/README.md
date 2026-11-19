@@ -83,7 +83,7 @@ imported into Rancher. The EKS example has not been live-tested.
    ```
 
    The Ansible deploy can do this step instead: add `fleet_apps_capi_templates` to
-   `fleet_apps` (see [Cluster API](../README.md#cluster-api) in the main README), pointing its
+   `fleet_apps` (see [Cluster API](../docs/cluster-api.md)), pointing its
    `repo` at your fork.
 
 Fleet applies the identity, the ClusterClasses and then the clusters, in dependency order.

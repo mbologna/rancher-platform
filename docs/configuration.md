@@ -55,7 +55,7 @@ host in the inventory, or for one run with `-e`. `<ip>` below is the host's addr
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `downstream_clusters` | `[]` | kind clusters to create and import, as names or `{name, kubernetes_version, labels}`, or `{name, type: rke2, kubernetes_version, nodes, labels}` for clusters Rancher provisions on Docker containers. See [clusters-and-apps.md](clusters-and-apps.md). |
+| `downstream_clusters` | `[]` | kind clusters to create and import, as names or `{name, kubernetes_version, labels}`, or `{name, type: rke2, kubernetes_version, nodes, labels}` for clusters Rancher provisions on Docker containers. See [downstream-clusters.md](downstream-clusters.md). |
 | `downstream_metrics_server` | `false` | Install metrics-server in each kind cluster. |
 
 ## Fleet apps and Helm charts

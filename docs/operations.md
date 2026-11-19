@@ -1,7 +1,9 @@
 # Operations
 
 Run every `./manage.sh` command from `ansible/`. Extra arguments go to `ansible-playbook`, for
-example `-i inventory/lima.yml` or `-e '{"downstream_clusters": ["dev"]}'`.
+example `-i inventory/lima.yml` or `-e '{"downstream_clusters": ["dev"]}'`. Upgrades,
+snapshots, development builds and the image cache have their own pages, listed in the
+[README](../README.md#features).
 
 | Command | Effect |
 |---|---|
@@ -31,80 +33,6 @@ kubectl config get-contexts   # <host>, <host>-dev, <host>-staging
 in the UI, set `rancher_admin_password` in `secrets.yml`; otherwise `deploy` falls back to the RKE2
 kubeconfig on port 6443, which reaches only the Rancher cluster. `kubeconfig_via_rancher: false`
 always uses that RKE2 kubeconfig.
-
-## Rancher AI
-
-Each host's Rancher gets
-[Liz, the Rancher AI Assistant](https://documentation.suse.com/cloudnative/rancher-ai/1.1.0/en/quick-start.html):
-the agent and MCP server in `cattle-ai-agent-system`, and the UI extension in
-`cattle-ui-plugin-system`. Reload the Rancher UI after installation, then configure a provider and
-model under **Global Settings → AI Assistant**. No Ollama server, model or provider credentials
-are installed. Later deploys keep the provider settings and credentials saved through the UI.
-
-AI 1.1.0's agent chart declares Rancher 2.13 and Kubernetes <1.35 in its
-[catalogue annotations](https://github.com/rancher/rancher-ai-agent/blob/v1.1.0/chart/agent/Chart.yaml),
-although the quick start says Rancher 2.13 or above. This project installs it directly with Helm
-on the pinned Rancher 2.15 and Kubernetes 1.36. Agent and MCP readiness and UI extension loading
-were verified on that platform; LLM requests have not been tested. The
-[UI extension](https://github.com/rancher/ui-plugin-charts/blob/main/charts/rancher-ai-ui/1.1.0/Chart.yaml)
-is marked Prime-only. `rancher_ai_enabled: false` stops `deploy` managing AI and leaves an
-existing installation in place.
-
-## Upgrades
-
-Renovate proposes version bumps. Patch releases of RKE2, cert-manager and Rancher merge once the
-E2E workflow has deployed them; minor and major ones wait for review. Pull and run
-`./manage.sh deploy`.
-
-`deploy` refuses to skip or roll back a Kubernetes minor: go from 1.34 to 1.36 via
-`-e rke2_version=<a v1.35.x release>`. Before Rancher changes version or image, it saves an etcd
-snapshot named `pre-upgrade-<from>-to-<to>`. Rancher cannot be downgraded, so `deploy` refuses an
-older `rancher_version`; restore that snapshot instead.
-
-Changing `rancher_hostname` on a running host moves Rancher, the kubeconfig and the downstream
-agents to the new name.
-
-## Development builds
-
-Release candidates and alphas come from other chart channels; nightly builds are image tags on the
-pinned chart:
-
-```bash
-./manage.sh deploy -e rancher_chart_channel=latest -e rancher_version=2.15.2-rc1
-./manage.sh deploy -e rancher_image_tag=v2.15-head   # or head for the next minor
-```
-
-Each deploy with a `head` tag compares the image digest on Docker Hub with the running pod and
-restarts Rancher when a newer build exists. Images from other registries (`rancher_image`) are
-restarted on every deploy. `rancher_settings` sets Rancher settings, for example
-`ui-dashboard-index` to load the dashboard from a local UI build, and `rancher_extra_values`
-merges chart values over the playbook's own.
-
-## Snapshots and restore
-
-etcd holds all RKE2 and Rancher state. RKE2 snapshots it every 12 hours to
-`/var/lib/rancher/rke2/server/db/snapshots` and keeps 5; set `rke2_etcd_s3_bucket` to keep copies
-off the host. Take one before an experiment and roll back afterwards:
-
-```bash
-./manage.sh snapshot before-test   # save, then list all snapshots
-./manage.sh snapshots
-./manage.sh restore before-test    # about 3 minutes; Rancher is down meanwhile
-```
-
-`restore` takes the newest snapshot whose name starts with the one given. It rolls back Rancher,
-Fleet and everything on the Rancher cluster. The kind clusters keep running and reconnect; Fleet
-then redeploys the apps it had at snapshot time, but other workloads inside them are not restored.
-
-## Image cache
-
-Repeated resets and new kind clusters pull the same images again, and Docker Hub limits anonymous
-pulls. `registry_cache_enabled: true` runs a pull-through cache on the host for docker.io,
-ghcr.io, quay.io and registry.k8s.io, on ports 5001-5004. RKE2 and the downstream clusters pull
-through it and go to the upstream registry when it is down. The images stay in Docker volumes
-`rp-registry-*` when the cache is turned off; `reset` deletes them. Set
-`registry_cache_dockerhub_username` and `registry_cache_dockerhub_password` in `secrets.yml` to
-pull from Docker Hub as that account; an access token works as the password.
 
 ## Tear it down
 
