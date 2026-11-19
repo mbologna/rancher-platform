@@ -160,13 +160,13 @@ fleet_apps_examples:
     repo: https://github.com/rancher/fleet-examples
     paths: [multi-cluster/helm]
 
-# ClusterClasses and example clusters from fleet/, for Rancher Turtles. Needs
-# capi_providers_enabled. keep_resources stops Fleet deleting CAPI clusters when the app is removed.
 # Wildcard DNS for app Ingresses: the sslip.io domain of rancher_hostname, else of the host's IP.
 fleet_apps_ingress_domain: >-
   {{ rancher_hostname | regex_replace('^rancher\\.', '') if rancher_hostname is search('\\.sslip\\.io$')
      else ansible_facts.default_ipv4.address ~ '.sslip.io' }}
 
+# ClusterClasses and example clusters from fleet/, for Rancher Turtles. Needs
+# capi_providers_enabled. keep_resources stops Fleet deleting CAPI clusters when the app is removed.
 fleet_apps_capi_templates:
   - name: capi-cluster-templates
     repo: https://github.com/mbologna/rancher-platform
