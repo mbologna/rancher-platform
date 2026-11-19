@@ -9,6 +9,9 @@ Every pull request runs:
 - the same hooks, plus OpenTofu validation, tflint and a Trivy scan of `terraform/`, in the
   [Lint workflow](../.github/workflows/lint.yml), and zizmor in the
   [Security workflow](../.github/workflows/security.yml);
+- a link check in the Lint workflow: [lychee](https://lychee.cli.rs/) checks that the relative
+  links and `#anchors` in every Markdown file resolve, without fetching external URLs. Run it
+  locally with `lychee --offline --include-fragments .`;
 - the [Commits workflow](../.github/workflows/commits.yml), which lints every commit against
   [Conventional Commits](https://www.conventionalcommits.org/) and rejects `fixup!` commits;
 - the [E2E workflow](../.github/workflows/e2e.yml), which deploys the pinned release on the GitHub

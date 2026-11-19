@@ -41,3 +41,16 @@ jobs:
         run: |
           pip install -r .github/requirements-lint.txt
           pre-commit run --all-files --show-diff-on-failure
+
+  # Relative links and #anchors between the Markdown files. --offline skips
+  # external URLs, so the check does not depend on other sites being up.
+  links:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --offline --include-fragments --no-progress .
