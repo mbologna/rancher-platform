@@ -1,5 +1,5 @@
 ---
-# rancher-fleet-clusters owns provider versions and settings (platform/providers-values.yaml);
+# fleet/ owns provider versions and settings (fleet/platform/providers-values.yaml);
 # this role installs them with the rancher-turtles-providers chart.
 - name: Read the Turtles version Rancher installed
   kubernetes.core.k8s_info:
@@ -35,12 +35,20 @@
     remote_src: true
     creates: "{{ rancher_dev_dir }}/turtles-{{ capi_providers_turtles_version }}/charts/rancher-turtles-providers"
 
-- name: Download the provider values from rancher-fleet-clusters
+- name: Copy the provider values from fleet/platform
+  ansible.builtin.copy:
+    src: "{{ capi_providers_values_file }}"
+    dest: "{{ rancher_dev_dir }}/providers-values.yaml"
+    mode: "0644"
+  when: capi_providers_values_url | length == 0
+
+- name: Download the provider values from capi_providers_values_url
   ansible.builtin.get_url:
     url: "{{ capi_providers_values_url }}"
     dest: "{{ rancher_dev_dir }}/providers-values.yaml"
     mode: "0644"
     force: true
+  when: capi_providers_values_url | length > 0
 
 # The chart creates capa-system itself; Helm adopts it only with this ownership metadata.
 - name: Create the CAPA namespace for the chart to adopt
@@ -87,7 +95,7 @@
   when: capi_providers_aws_enabled | bool
 
 # Namespaces are the chart defaults: Helm cannot adopt the existing cattle-turtles-system
-# that rancher-fleet-clusters' values name for migrated installs.
+# that fleet/'s values name for migrated installs.
 - name: Install or upgrade the CAPI providers
   kubernetes.core.helm:
     name: "{{ capi_providers_release }}"

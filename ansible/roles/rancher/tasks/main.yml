@@ -143,7 +143,7 @@
   when: rancher_tls_issuer_cn[rancher_tls_source] not in rancher_cert_issuer.stdout
 
 # Rancher v2.14+ deploys Turtles as a system chart and manages the CAPI CoreProvider itself.
-# CAPI providers are installed by rancher-fleet-clusters.
+# CAPI providers are installed by the capi_providers role, from fleet/platform.
 - name: Wait for the Turtles controller to become available
   kubernetes.core.k8s_info:
     kind: Deployment

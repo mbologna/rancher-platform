@@ -168,9 +168,10 @@ fleet_apps:
 ```
 
 For [Rancher Turtles](https://turtles.docs.rancher.com/), set `capi_providers_enabled: true` and
-add `fleet_apps_capi_templates`, the ClusterClasses and example clusters from
-[rancher-fleet-clusters](https://github.com/mbologna/rancher-fleet-clusters):
-`fleet_apps: "{{ fleet_apps_examples + fleet_apps_capi_templates }}"`.
+add `fleet_apps_capi_templates`, the ClusterClasses and example clusters in
+[`fleet/`](fleet/README.md):
+`fleet_apps: "{{ fleet_apps_examples + fleet_apps_capi_templates }}"`. Until 2026-11-19 they
+lived in the separate rancher-fleet-clusters repository, now archived.
 
 `guestbook-multi` reads the cluster label `env`: `dev` drops the Redis replicas and `test` runs
 three frontends. `env: prod` asks for a `LoadBalancer` Service, which kind clusters cannot
@@ -366,7 +367,9 @@ automerge always waits for the deploy when it matters.
 E2E also runs every Monday on
 Rancher `head`, pinned to that build's commit tag so both deploys use the same image; run it by
 hand with another tag from *Actions → E2E → Run workflow* (`rancher_image_tag`). No workflow uses
-cloud resources.
+cloud resources. The Cluster API templates in `fleet/` have their own workflows (manifest
+validation, a platform check that provisions the Docker example, and provider sync), described
+in [fleet/README.md](fleet/README.md#development).
 
 Every commit follows [Conventional Commits](https://www.conventionalcommits.org/) (CI lints each one); the
 [Release workflow](.github/workflows/release.yml) tags a version every Monday at 06:00 UTC when a
