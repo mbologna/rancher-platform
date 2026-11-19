@@ -13,14 +13,65 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\n[a-z0-9_]+: \"?(?<currentValue>[^\"\\s]+)\"?"
       ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^fleet/platform/.*-values\\.yaml$/",
+        "/^fleet/clusters/.*\\/cluster\\.yaml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s+(?:# (?:chart|rancher)-version:|version:) (?<currentValue>\\S+)"
+      ],
+      "description": "fleet/: version pins of the Cluster API templates"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^fleet/clusters/docker-rke2-example/cluster\\.yaml$/"
+      ],
+      "matchStrings": [
+        "value: (?<depName>kindest/node):(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "docker",
+      "description": "fleet/: version pins of the Cluster API templates"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/fleet-validate\\.yaml$/"
+      ],
+      "matchStrings": [
+        "go install (?<depName>github\\.com/mikefarah/yq/v4)@(?<currentValue>v\\S+)"
+      ],
+      "datasourceTemplate": "go",
+      "description": "fleet/: version pins of the Cluster API templates"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^fleet/clusterclasses/aws-rke2/aws-ccm-v136\\.yaml$/"
+      ],
+      "matchStrings": [
+        "image: (?<depName>registry\\.k8s\\.io/provider-aws/cloud-controller-manager):(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "github-tags",
+      "packageNameTemplate": "kubernetes/cloud-provider-aws",
+      "description": "fleet/: version pins of the Cluster API templates"
     }
   ],
   "packageRules": [
     {
       "description": "The E2E deploy runs Ansible on the setup-python interpreter, and ansible-core 2.21 does not run on Python 3.15 (AttributeError: module 'dataclasses' has no attribute '_is_type'). Hold e2e.yml below 3.15; raise this with ansible-core 2.22 in ansible/requirements-ci.txt",
-      "matchManagers": ["github-actions"],
-      "matchDepNames": ["python"],
-      "matchFileNames": [".github/workflows/e2e.yml"],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "python"
+      ],
+      "matchFileNames": [
+        ".github/workflows/e2e.yml"
+      ],
       "allowedVersions": "<3.15"
     },
     {
@@ -76,7 +127,132 @@
         "major"
       ],
       "automerge": false,
-      "labels": ["dependencies", "manual-review"]
+      "labels": [
+        "dependencies",
+        "manual-review"
+      ]
+    },
+    {
+      "description": "The fleet platform check runs this repository's Ansible on the setup-python interpreter, and ansible-core 2.21 does not run on Python 3.15 (AttributeError: module 'dataclasses' has no attribute '_is_type'). Hold fleet-platform.yaml below 3.15 until ansible/requirements-ci.txt moves to ansible-core 2.22 and its own e2e hold is lifted.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "python"
+      ],
+      "matchFileNames": [
+        ".github/workflows/fleet-platform.yaml"
+      ],
+      "allowedVersions": "<3.15"
+    },
+    {
+      "description": "Rancher is the one pin of the provider stack. The Turtles release it bundles (its build.yaml turtlesVersion) and that release's provider catalogue (config-prime.yaml) fix Turtles, core CAPI, CAPD, CAPA and CAPRKE2, so a Rancher update PR carries all of them: the Provider sync workflow runs scripts/sync-providers.py on it and commits the rewritten pins. The required platform check deploys that Rancher with those providers, provisions the Docker RKE2 example through Fleet, CAPI and CAPRKE2, and waits for Turtles to import it into Rancher, so updates automerge on that check after the preset's age gates. CAPA is only installed and started: nothing exercises AWS.",
+      "matchDepNames": [
+        "rancher/rancher"
+      ],
+      "groupName": "Turtles provider stack",
+      "automerge": true,
+      "labels": [
+        "dependencies",
+        "automerge"
+      ],
+      "allowedVersions": "!/-(alpha|beta|rc|dev)/",
+      "matchFileNames": [
+        "fleet/**"
+      ]
+    },
+    {
+      "description": "Rancher majors wait for a person. The rule above would otherwise automerge them like the preset's other majors.",
+      "matchDepNames": [
+        "rancher/rancher"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "manual-review"
+      ],
+      "prBodyNotes": [
+        "**Why this waits for you:** a major release in the Rancher/Turtles provider stack can drop APIs or change the upgrade path. The platform check proves a fresh install, not an upgrade of running clusters; read the release notes and docs/migration.md before merging."
+      ],
+      "matchFileNames": [
+        "fleet/**"
+      ]
+    },
+    {
+      "description": "Turtles, core CAPI, CAPD, CAPA and CAPRKE2 follow the Rancher pin (see the rule above), never their own releases: a standalone bump installs providers the bundled Turtles was not tested with, and validate rejects pins that differ from its catalogue. The markers stay so the dashboard still lists the versions.",
+      "matchDepNames": [
+        "rancher/turtles",
+        "kubernetes-sigs/cluster-api",
+        "kubernetes-sigs/cluster-api-provider-aws",
+        "rancher/cluster-api-provider-rke2"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "RKE2 and the kind node image patches automerge, together: the required platform check provisions the Docker RKE2 example on both through Fleet, CAPI and CAPRKE2. The AWS example's RKE2 pin moves with them; nothing exercises AWS, but a patch keeps the same classes and CCM.",
+      "matchDepNames": [
+        "rancher/rke2",
+        "kindest/node"
+      ],
+      "groupName": "RKE2 and kind",
+      "automerge": true,
+      "labels": [
+        "dependencies",
+        "automerge"
+      ],
+      "matchFileNames": [
+        "fleet/**"
+      ]
+    },
+    {
+      "description": "AWS CCM patches automerge (minors are disabled below). Its versions come from the kubernetes/cloud-provider-aws tags (customManagers), which carry dates; registry.k8s.io has none, so under the preset's timestamp-required age gates every release stayed pending for good (2026-11). A tag can precede the image's promotion, so the required validate check fails until registry.k8s.io serves the pinned image. Nothing in CI runs the CCM on AWS: a patch of the pinned line carries fixes only.",
+      "matchDepNames": [
+        "registry.k8s.io/provider-aws/cloud-controller-manager"
+      ],
+      "automerge": true,
+      "labels": [
+        "dependencies",
+        "automerge"
+      ],
+      "matchFileNames": [
+        "fleet/**"
+      ]
+    },
+    {
+      "description": "Patches get their own update, apart from minors. Without it Renovate offers only the highest non-major release, a minor that the rule below disables, so no patch of the pinned line was ever proposed once the next minor existed (CCM v1.36.2 behind v1.37.1, 2026-11).",
+      "matchDepNames": [
+        "rancher/rke2",
+        "kindest/node",
+        "registry.k8s.io/provider-aws/cloud-controller-manager"
+      ],
+      "separateMinorPatch": true,
+      "matchFileNames": [
+        "fleet/**"
+      ]
+    },
+    {
+      "description": "A new minor needs new immutable templates and a CCM migration.",
+      "matchDepNames": [
+        "rancher/rke2",
+        "kindest/node",
+        "registry.k8s.io/provider-aws/cloud-controller-manager"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor"
+      ],
+      "enabled": false,
+      "matchFileNames": [
+        "fleet/**"
+      ]
     }
+  ],
+  "ignorePaths": [
+    "fleet/clusterclasses/aws-rke2/clusterclass.yaml",
+    "fleet/clusterclasses/aws-rke2/aws-ccm.yaml",
+    "fleet/clusterclasses/docker-rke2/clusterclass.yaml"
   ]
 }

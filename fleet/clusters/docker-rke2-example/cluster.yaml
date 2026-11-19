@@ -1,0 +1,43 @@
+# Fresh-install Docker + RKE2 example using docker-rke2-v136.
+# Preserve the old class/version in your fork for existing clusters.
+# Nodes are Docker containers — useful for local CAPI development and testing.
+#
+# Prerequisites:
+#   - Platform-owned CAPD and CAPRKE2 providers are Ready
+#   - docker-rke2-v136 ClusterClass applied (clusterclasses/docker-rke2)
+#
+# The rancher-auto-import label causes Turtles to automatically register
+# this cluster with Rancher Manager once it becomes Provisioned.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: docker-rke2-example
+  namespace: default
+  labels:
+    cluster-api.cattle.io/rancher-auto-import: "true"
+  annotations:
+    cluster-api.cattle.io/upstream-system-agent: "true"
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - 10.10.0.0/16
+    services:
+      cidrBlocks:
+        - 10.11.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: docker-rke2-v136
+    # renovate: datasource=github-releases depName=rancher/rke2 versioning=regex:^v?(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)\+rke2r(?<build>\d+)$
+    version: v1.36.6+rke2r1
+    controlPlane:
+      replicas: 1
+    workers:
+      machineDeployments:
+        - class: default-worker
+          name: md-0
+          replicas: 1
+    variables:
+      - name: dockerImage
+        value: kindest/node:v1.36.4

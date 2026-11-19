@@ -1,0 +1,28 @@
+# The names Fleet generated while this path was at the repository root, pinned so moving it under
+# fleet/ (2026-11-19) kept the bundle and its Helm release. validate-repo.py checks them.
+name: capi-cluster-templates-clusterclasses-aws-rke2
+helm:
+  releaseName: capi-cluster-templates-clusterclasses-aws-rke2
+defaultNamespace: default
+
+# AWSClusterTemplate and AWSMachineTemplate specs are immutable in CAPA v2
+# (the admission webhook rejects any spec modification after first creation).
+# Tell Fleet's diff engine to ignore the spec of these resources to avoid
+# triggering the webhook on reconcile loops.
+diff:
+  comparePatches:
+    - apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+      kind: AWSClusterTemplate
+      name: ^aws-rke2(-v136)?-cluster$
+      operations:
+        - {op: remove, path: /spec}
+    - apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+      kind: AWSMachineTemplate
+      name: ^aws-rke2(-v136)?-control-plane-machine$
+      operations:
+        - {op: remove, path: /spec}
+    - apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+      kind: AWSMachineTemplate
+      name: ^aws-rke2(-v136)?-worker-machine$
+      operations:
+        - {op: remove, path: /spec}

@@ -3,6 +3,14 @@ extends: default
 rules:
   line-length:
     max: 120
+    # The Cluster API manifests embed shell and CEL expressions that can't wrap.
+    ignore: |
+      fleet/clusterclasses/
+      fleet/clusters/
+  # The fleet/ manifests and values files have no document start marker.
+  document-start:
+    ignore: |
+      fleet/
   truthy:
     allowed-values: ["true", "false"]
     check-keys: false
