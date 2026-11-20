@@ -110,7 +110,7 @@ Tags are this project's own SemVer with the Rancher version it deploys as build 
 `v2.2.0+up2.15.3` deploys Rancher 2.15.3. The version follows the commits, and a Rancher minor
 is a breaking change, so `v3.0.0+up2.16.0` would follow. A Rancher patch alone releases a patch.
 Check out a tag to deploy exactly that combination. This is pattern A of the
-[versioning standard](https://github.com/mbologna/.github/blob/main/VERSIONING.md); tags up to
-`v2.1.1` have no metadata.
+[versioning standard](https://github.com/mbologna/.github/blob/main/VERSIONING.md); every
+release since `v1.0.0+up2.15.2` carries it.
 
 Licensed under the [Apache License 2.0](LICENSE).
