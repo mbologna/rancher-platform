@@ -162,6 +162,17 @@
       ]
     },
     {
+      "description": "A Rancher minor is a major release of this repository (VERSIONING.md in mbologna/.github, pattern A: tags are vX.Y.Z+up<rancher>). It drops Kubernetes minors and changes the bundled Turtles and providers, so the update is committed as a breaking feat, which auto-release turns into a major.",
+      "matchDepNames": [
+        "rancher",
+        "rancher/rancher"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "commitMessagePrefix": "feat(deps)!:"
+    },
+    {
       "description": "Rancher majors wait for a person. The rule above would otherwise automerge them like the preset's other majors.",
       "matchDepNames": [
         "rancher/rancher"
