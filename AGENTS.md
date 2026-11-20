@@ -6,8 +6,8 @@ does and how to use it, and [docs/development.md](docs/development.md) the check
 ## Versioning
 
 SemVer with the pinned Rancher as build metadata: `vX.Y.Z+up<rancher_version>`, e.g.
-`v2.2.0+up2.15.3` (pattern A of the
-[versioning standard](https://github.com/mbologna/.github/blob/main/VERSIONING.md)).
+`v2.2.0+up2.15.3`, per the
+[versioning standard](https://github.com/mbologna/.github/blob/main/VERSIONING.md).
 
 - Never create, move or delete tags, and never edit a version to cut a release:
   auto-release tags on Mondays from the commit types (`feat` minor; `fix`, `perf`, `revert`
