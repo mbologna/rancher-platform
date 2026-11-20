@@ -32,8 +32,10 @@ Required checks: `commits / Conventional commits`, `pre-commit`, the `terraform 
 `zizmor`, `e2e`, `validate` and `platform`. Pull requests merge with merge commits only, so each
 commit lands on `main` as written. The [Release workflow](../.github/workflows/release.yml) runs
 [auto-release](https://github.com/mbologna/auto-release) every Monday at 06:00 UTC and tags a
-version when a `feat`, `fix`, `perf`, `revert` or breaking commit landed on `main`. A Renovate
-`fix(security)` update, or a manual run, releases at once. Notes are on the
+version when a `feat`, `fix`, `perf`, `revert` or breaking commit landed on `main`, or when the
+Rancher pin moved. A Renovate `fix(security)` update, or a manual run, releases at once. Tags
+carry the pinned Rancher as build metadata, `v2.2.0+up2.15.3`, and a Rancher minor bumps the
+major (see the [README](../README.md#versioning)). Notes are on the
 [Releases page](https://github.com/mbologna/rancher-platform/releases).
 
 ## Documenting a feature
