@@ -7,6 +7,11 @@ name: Release
 # (https://github.com/mbologna/auto-release). A push releases at once only a
 # fix(security) update. Run it by hand on main to release at once, or with
 # dry_run to preview. Nothing builds on tags here, so no tag build is dispatched.
+#
+# Tags carry the pinned Rancher as build metadata (v2.2.0+up2.15.3, pattern A
+# of mbologna/.github's VERSIONING.md), and a Rancher bump releases on its own
+# even as a chore(deps) commit. Renovate commits a Rancher minor as
+# feat(deps)!, so it bumps the major.
 
 on:
   # A push releases only a CVE fix (security strategy); the rest waits for Monday.
@@ -36,3 +41,6 @@ jobs:
     with:
       strategy: conventional
       dispatch_tag_build: false
+      metadata_command: >-
+        printf 'up%s' "$(sed -nE 's/^rancher_version: "?([^" ]+)"?$/\1/p'
+        ansible/group_vars/all/config.yml)"
