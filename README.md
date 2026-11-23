@@ -104,6 +104,19 @@ inventory, or for one run with `-e`. Each page explains the settings, caveats an
 [docs/development.md](docs/development.md) covers pre-commit, CI, releases and how to document
 a new feature.
 
+## Why not an existing tool
+
+- [tf-rancher-up](https://github.com/rancher/tf-rancher-up) (Rancher's Terraform modules)
+  provisions cloud VMs with RKE2 or k3s plus Rancher, with Longhorn and backup add-ons. It
+  can't install on a host you have or a Lima VM.
+- It has no kind import, no RKE2 clusters provisioned on Docker, and no Turtles and Cluster API
+  with ClusterClasses.
+- It has no Rancher AI, no etcd snapshot restore, no stepwise upgrades and no image cache.
+- [quickstart](https://github.com/rancher-archives/quickstart) (Rancher's quick start
+  Terraform) is archived.
+
+Checked 2026-11-23.
+
 ## Versioning
 
 Tags are this project's own SemVer with the Rancher version it deploys as build metadata:
