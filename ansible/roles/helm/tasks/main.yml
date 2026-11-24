@@ -43,7 +43,17 @@
 
 # helm-diff lets kubernetes.core.helm skip no-op upgrades
 - name: Install helm-diff {{ helm_diff_version }}
-  ansible.builtin.command: >-
-    {{ helm_bin }} plugin install https://github.com/databus23/helm-diff --version {{ helm_diff_version }}
-  changed_when: true
   when: not (helm_diff_current | bool)
+  block:
+    - name: Download helm-diff
+      ansible.builtin.get_url:
+        url: "{{ helm_diff_url }}/{{ helm_diff_tarball }}"
+        checksum: "sha256:{{ helm_diff_url }}/helm-diff_{{ helm_diff_version | regex_replace('^v', '') }}_checksums.txt"
+        dest: /tmp/{{ helm_diff_tarball }}
+        mode: "0644"
+
+    # Helm 4 verifies plugin signatures against a GPG keyring; get_url checked the tarball instead.
+    # Helm names the plugin after the tarball, so it keeps its release name.
+    - name: Install the helm-diff plugin
+      ansible.builtin.command: "{{ helm_bin }} plugin install /tmp/{{ helm_diff_tarball }} --verify=false"
+      changed_when: true
