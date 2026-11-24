@@ -8,9 +8,16 @@
 - name: Install Helm {{ helm_version }}
   when: helm_installed.stdout.split('+')[0] != helm_version
   block:
-    - name: Download and unpack Helm
+    - name: Download Helm
+      ansible.builtin.get_url:
+        url: "{{ helm_url }}"
+        checksum: "sha256:{{ helm_url }}.sha256sum"
+        dest: /tmp/helm-{{ helm_version }}.tar.gz
+        mode: "0644"
+
+    - name: Unpack Helm
       ansible.builtin.unarchive:
-        src: https://get.helm.sh/helm-{{ helm_version }}-linux-{{ helm_arch }}.tar.gz
+        src: /tmp/helm-{{ helm_version }}.tar.gz
         dest: /tmp
         remote_src: true
         include: ["linux-{{ helm_arch }}/helm"]

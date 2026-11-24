@@ -83,7 +83,7 @@
 
 - name: Create a Python virtualenv for the Kubernetes modules
   ansible.builtin.pip:
-    name: [kubernetes, PyYAML]
+    name: ["kubernetes=={{ k8s_python_kubernetes_version }}", "PyYAML=={{ k8s_python_pyyaml_version }}"]
     virtualenv: "{{ k8s_venv }}"
     virtualenv_command: "{{ ansible_facts.python.executable }} -m venv"
 

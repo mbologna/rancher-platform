@@ -64,9 +64,10 @@
 - name: Install RKE2 {{ rke2_version }}
   when: rke2_version not in rke2_installed
   block:
-    - name: Download the RKE2 install script
+    # The script from the release tag, not get.rke2.io (the default branch's latest)
+    - name: Download the install script of RKE2 {{ rke2_version }}
       ansible.builtin.get_url:
-        url: https://get.rke2.io
+        url: https://raw.githubusercontent.com/rancher/rke2/{{ rke2_version }}/install.sh
         dest: /usr/local/share/rke2-install.sh
         mode: "0755"
         force: true
