@@ -1,8 +1,12 @@
 # Development and CI
 
 ```bash
-pre-commit install && pre-commit run --all-files
+uv run --group lint pre-commit install && uv run --group lint pre-commit run --all-files
 ```
+
+[uv](https://docs.astral.sh/uv/) installs the Python tools from `uv.lock`: pre-commit, the
+ansible-core that CI deploys with (`--group ansible`) and the Fleet validator's packages
+(`--group fleet`).
 
 Every pull request runs:
 

@@ -1,0 +1,24 @@
+# Python tools for development and CI, pinned by uv.lock. Not a package: releases are the git
+# tags that auto-release cuts, so the version below never changes.
+[project]
+name = "rancher-platform"
+version = "0"
+requires-python = ">=3.13"
+
+[dependency-groups]
+# pre-commit, which runs the lint hooks
+lint = ["pre-commit==4.7.0"]
+# The Ansible controller that CI deploys with
+ansible = ["ansible-core==2.22.0"]
+# fleet/scripts: validate-repo.py --schemas
+fleet = ["jsonschema==4.26.0"]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 140
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]

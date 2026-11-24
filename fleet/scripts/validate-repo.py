@@ -10,7 +10,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 # The repository root: the GitRepo paths start there, with fleet/.
 REPO_ROOT = ROOT.parent

@@ -11,7 +11,6 @@ import urllib.error
 from pathlib import Path
 from unittest import mock
 
-
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("sync_providers", ROOT / "scripts/sync-providers.py")
 sync_providers = importlib.util.module_from_spec(spec)
@@ -112,7 +111,7 @@ class SyncProvidersTests(unittest.TestCase):
         for path, text in after.items():
             old_lines, new_lines = before[path].splitlines(), text.splitlines()
             self.assertEqual(len(old_lines), len(new_lines))
-            for old, new in zip(old_lines, new_lines):
+            for old, new in zip(old_lines, new_lines, strict=True):
                 if old != new:
                     self.assertRegex(old, r"^(\s*version: |# chart-version: )v")
         # Idempotent: a second run is a no-op.

@@ -8,7 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 # Fresh installs use the chart's namespaces: Helm cannot adopt the existing
 # cattle-turtles-system that the values file keeps for migrated installs.
@@ -54,7 +53,8 @@ def provider_errors(items, expected):
         if status.get("installedVersion") != version:
             errors.append(f"{provider_type}/{name}: installed version must be {version}")
         conditions = status.get("conditions", [])
-        if status.get("phase") != "Ready" or not any(item["type"] == "ProviderInstalled" and item["status"] == "True" for item in conditions):
+        installed = any(item["type"] == "ProviderInstalled" and item["status"] == "True" for item in conditions)
+        if status.get("phase") != "Ready" or not installed:
             errors.append(f"{provider_type}/{name}: ProviderInstalled is not True")
         # Turtles refreshes only the conditions it re-evaluates, so any one of them may lag a generation.
         generation = provider["metadata"].get("generation")

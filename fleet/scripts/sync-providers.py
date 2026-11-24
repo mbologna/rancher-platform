@@ -17,7 +17,6 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 TURTLES_VALUES = "platform/turtles-values.yaml"
 PROVIDERS_VALUES = "platform/providers-values.yaml"

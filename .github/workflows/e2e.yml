@@ -45,7 +45,7 @@ jobs:
           fi
           files=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" --jq '.[].filename')
           echo "${files}"
-          if grep -qE '^(ansible/|\.github/workflows/e2e\.yml$)' <<< "${files}"; then
+          if grep -qE '^(ansible/|pyproject\.toml$|uv\.lock$|\.github/workflows/e2e\.yml$)' <<< "${files}"; then
             echo "e2e=true" >> "${GITHUB_OUTPUT}"
           else
             echo "e2e=false" >> "${GITHUB_OUTPUT}"
@@ -68,13 +68,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.15"
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
 
+      # ansible-core from uv.lock, in the repository's .venv, on PATH for the later steps.
       - name: Install Ansible
         run: |
-          pip install -r requirements-ci.txt
+          uv sync --locked --only-group ansible
+          export PATH="${GITHUB_WORKSPACE}/.venv/bin:${PATH}"
+          echo "${GITHUB_WORKSPACE}/.venv/bin" >> "${GITHUB_PATH}"
           ./manage.sh install
 
       # The runner is the target host. Docker is already installed, so the playbook leaves it alone.

@@ -1,2 +1,0 @@
-# Controller-side Ansible for the E2E workflow; Renovate keeps it current.
-ansible-core==2.22.0
