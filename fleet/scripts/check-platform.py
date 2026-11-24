@@ -22,7 +22,9 @@ CHART_NAMESPACES = {
 def yaml_documents(path):
     result = subprocess.run(
         ["yq", "-o=json", "-I=0", ".", str(path)],
-        text=True, capture_output=True, check=True,
+        text=True,
+        capture_output=True,
+        check=True,
     )
     return [json.loads(line) for line in result.stdout.splitlines() if line]
 
@@ -31,7 +33,8 @@ def provider_errors(items, expected):
     errors = []
     for provider_type, name, namespace, version in expected:
         matches = [
-            item for item in items
+            item
+            for item in items
             if item.get("spec", {}).get("type") == provider_type
             and item.get("spec", {}).get("name", item["metadata"]["name"]) == name
         ]
@@ -45,20 +48,32 @@ def provider_errors(items, expected):
         hook_owned = provider_type == "core" and "helm.sh/hook" in annotations
         if annotations.get("meta.helm.sh/release-name") != release and not hook_owned:
             errors.append(f"{provider_type}/{name}: expected platform Helm release {release}")
-        if provider["metadata"]["namespace"] not in (namespace, CHART_NAMESPACES.get((provider_type, name))):
+        if provider["metadata"]["namespace"] not in (
+            namespace,
+            CHART_NAMESPACES.get((provider_type, name)),
+        ):
             errors.append(f"{provider_type}/{name}: expected namespace {namespace}")
-        if provider["spec"].get("version") != version or provider["spec"].get("enableAutomaticUpdate", False):
-            errors.append(f"{provider_type}/{name}: spec must pin {version} without automatic updates")
+        if provider["spec"].get("version") != version or provider["spec"].get(
+            "enableAutomaticUpdate", False
+        ):
+            errors.append(
+                f"{provider_type}/{name}: spec must pin {version} without automatic updates"
+            )
         status = provider.get("status", {})
         if status.get("installedVersion") != version:
             errors.append(f"{provider_type}/{name}: installed version must be {version}")
         conditions = status.get("conditions", [])
-        installed = any(item["type"] == "ProviderInstalled" and item["status"] == "True" for item in conditions)
+        installed = any(
+            item["type"] == "ProviderInstalled" and item["status"] == "True" for item in conditions
+        )
         if status.get("phase") != "Ready" or not installed:
             errors.append(f"{provider_type}/{name}: ProviderInstalled is not True")
         # Turtles refreshes only the conditions it re-evaluates, so any one of them may lag a generation.
         generation = provider["metadata"].get("generation")
-        if conditions and max(item.get("observedGeneration", generation) for item in conditions) != generation:
+        if (
+            conditions
+            and max(item.get("observedGeneration", generation) for item in conditions) != generation
+        ):
             errors.append(f"{provider_type}/{name}: provider status is stale")
     return errors
 
@@ -67,7 +82,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--context", required=True, help="Management kubecontext; no default")
     parser.add_argument(
-        "--without", action="append", choices=("aws", "docker"), default=[],
+        "--without",
+        action="append",
+        choices=("aws", "docker"),
+        default=[],
         help="Skip the checks of an infrastructure provider the deploy left out; repeatable",
     )
     args = parser.parse_args()
@@ -75,13 +93,25 @@ def main():
 
     def kubectl(*arguments):
         result = subprocess.run(
-            ["kubectl", "--context", args.context, "--request-timeout=30s", *arguments, "-o", "json"],
-            text=True, capture_output=True, check=True,
+            [
+                "kubectl",
+                "--context",
+                args.context,
+                "--request-timeout=30s",
+                *arguments,
+                "-o",
+                "json",
+            ],
+            text=True,
+            capture_output=True,
+            check=True,
         )
         return json.loads(result.stdout)
 
     values = yaml_documents(ROOT / "platform/providers-values.yaml")[0]["providers"]
-    core = yaml_documents(ROOT / "platform/turtles-values.yaml")[0]["cluster-api-operator"]["cluster-api"]["core"]
+    core = yaml_documents(ROOT / "platform/turtles-values.yaml")[0]["cluster-api-operator"][
+        "cluster-api"
+    ]["core"]
     expected = [("core", "cluster-api", core["namespace"], core["version"])]
     for key, provider_type, name in (
         ("bootstrapRKE2", "bootstrap", "rke2"),
@@ -92,19 +122,34 @@ def main():
         if provider_type == "infrastructure" and name in args.without:
             continue
         expected.append((provider_type, name, values[key]["namespace"], values[key]["version"]))
-    errors.extend(provider_errors(kubectl("get", "capiproviders.turtles-capi.cattle.io", "-A")["items"], expected))
+    errors.extend(
+        provider_errors(
+            kubectl("get", "capiproviders.turtles-capi.cattle.io", "-A")["items"], expected
+        )
+    )
     server = kubectl("version")["serverVersion"]
     minor = int(re.match(r"\d+", server["minor"])[0])
     if server["major"] != "1" or minor not in (34, 35, 36):
         errors.append("management Kubernetes must be >=1.34 and <1.37")
     # Registration tokens created while this is empty never get a manifest URL, so imports stall.
     if not kubectl("get", "settings.management.cattle.io", "server-url").get("value"):
-        errors.append("Rancher server-url is empty: set it (first UI login) before creating clusters")
+        errors.append(
+            "Rancher server-url is empty: set it (first UI login) before creating clusters"
+        )
     deployments = kubectl("get", "deployments", "-A")["items"]
-    controllers = ["capi-controller-manager", "rke2-bootstrap-controller-manager",
-                   "rke2-control-plane-controller-manager", "rancher-turtles-controller-manager", "rancher"]
+    controllers = [
+        "capi-controller-manager",
+        "rke2-bootstrap-controller-manager",
+        "rke2-control-plane-controller-manager",
+        "rancher-turtles-controller-manager",
+        "rancher",
+    ]
     controllers += [
-        controller for name, controller in (("aws", "capa-controller-manager"), ("docker", "capd-controller-manager"))
+        controller
+        for name, controller in (
+            ("aws", "capa-controller-manager"),
+            ("docker", "capd-controller-manager"),
+        )
         if name not in args.without
     ]
     for name in controllers:
@@ -113,7 +158,10 @@ def main():
             errors.append(f"Deployment/{name}: expected one controller, found {len(matches)}")
             continue
         deployment = matches[0]
-        if deployment.get("status", {}).get("observedGeneration", 0) < deployment["metadata"]["generation"]:
+        if (
+            deployment.get("status", {}).get("observedGeneration", 0)
+            < deployment["metadata"]["generation"]
+        ):
             errors.append(f"Deployment/{name}: status is stale")
         if deployment.get("status", {}).get("availableReplicas", 0) < 1:
             errors.append(f"Deployment/{name}: no available replicas")
@@ -129,7 +177,8 @@ def main():
                 errors.append(f"Deployment/{name}: expected image version {version}")
         if name == "capi-controller-manager":
             arguments = " ".join(
-                arg for container in deployment["spec"]["template"]["spec"]["containers"]
+                arg
+                for container in deployment["spec"]["template"]["spec"]["containers"]
                 for arg in container.get("args", [])
             )
             if "ClusterTopology=true" not in arguments:
@@ -138,14 +187,17 @@ def main():
                 errors.append("core CAPI must enable MachinePool")
         if name == "capa-controller-manager":
             arguments = " ".join(
-                arg for container in deployment["spec"]["template"]["spec"]["containers"]
+                arg
+                for container in deployment["spec"]["template"]["spec"]["containers"]
                 for arg in container.get("args", [])
             )
             if "MachinePool=true" not in arguments or "EKS=false" in arguments:
                 errors.append("CAPA must enable MachinePool and EKS")
     required = {
-        "clusters.cluster.x-k8s.io", "clusterclasses.cluster.x-k8s.io",
-        "machinepools.cluster.x-k8s.io", "clusterresourcesets.addons.cluster.x-k8s.io",
+        "clusters.cluster.x-k8s.io",
+        "clusterclasses.cluster.x-k8s.io",
+        "machinepools.cluster.x-k8s.io",
+        "clusterresourcesets.addons.cluster.x-k8s.io",
         "awsclustertemplates.infrastructure.cluster.x-k8s.io",
         "awsmachinetemplates.infrastructure.cluster.x-k8s.io",
         "awsclusterstaticidentities.infrastructure.cluster.x-k8s.io",
@@ -161,15 +213,25 @@ def main():
         if crd["metadata"]["name"] not in required:
             continue
         required.remove(crd["metadata"]["name"])
-        if not any(version["name"] == "v1beta2" and version["served"] for version in crd["spec"]["versions"]):
+        if not any(
+            version["name"] == "v1beta2" and version["served"]
+            for version in crd["spec"]["versions"]
+        ):
             errors.append(f"{crd['metadata']['name']}: v1beta2 must be served")
-        if not any(item["type"] == "Established" and item["status"] == "True" for item in crd.get("status", {}).get("conditions", [])):
+        if not any(
+            item["type"] == "Established" and item["status"] == "True"
+            for item in crd.get("status", {}).get("conditions", [])
+        ):
             errors.append(f"{crd['metadata']['name']}: CRD is not Established")
     if required:
         errors.append(f"Missing CRDs: {', '.join(sorted(required))}")
-    for name, keys in () if "aws" in args.without else (
-        ("cluster-identity", {"AccessKeyID", "SecretAccessKey"}),
-        ("capa-credentials", {"AWS_B64ENCODED_CREDENTIALS"}),
+    for name, keys in (
+        ()
+        if "aws" in args.without
+        else (
+            ("cluster-identity", {"AccessKeyID", "SecretAccessKey"}),
+            ("capa-credentials", {"AWS_B64ENCODED_CREDENTIALS"}),
+        )
     ):
         secret = kubectl("get", "secret", name, "-n", values["infrastructureAWS"]["namespace"])
         if not all(secret.get("data", {}).get(key) for key in keys):
@@ -177,12 +239,15 @@ def main():
     local_names = {
         (item["metadata"].get("namespace", "default"), item["metadata"]["name"])
         for path in (ROOT / "clusters").glob("*/cluster.yaml")
-        for item in yaml_documents(path) if item["kind"] == "Cluster"
+        for item in yaml_documents(path)
+        if item["kind"] == "Cluster"
     }
     for cluster in kubectl("get", "clusters.cluster.x-k8s.io", "-A")["items"]:
         key = (cluster["metadata"]["namespace"], cluster["metadata"]["name"])
         if key in local_names:
-            errors.append(f"Cluster/{key[0]}/{key[1]} already exists: review migration; do not apply fresh-install defaults")
+            errors.append(
+                f"Cluster/{key[0]}/{key[1]} already exists: review migration; do not apply fresh-install defaults"
+            )
     if errors:
         sys.exit("\n".join(f"ERROR: {error}" for error in errors))
     print("Platform providers, controllers, CRDs and fresh-install cluster names passed preflight.")

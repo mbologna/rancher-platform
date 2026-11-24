@@ -17,8 +17,12 @@ YQ = shutil.which("yq")
 EXPECTED_GITREPO_PATHS = ["fleet/clusterclasses", "fleet/identities", "fleet/clusters"]
 errors = []
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--schemas", action="store_true", help="Download and validate pinned release schemas")
-parser.add_argument("--deployment-check", action="store_true", help="Reject unfinished example values")
+parser.add_argument(
+    "--schemas", action="store_true", help="Download and validate pinned release schemas"
+)
+parser.add_argument(
+    "--deployment-check", action="store_true", help="Reject unfinished example values"
+)
 args = parser.parse_args()
 
 
@@ -92,18 +96,15 @@ for path in yaml_files:
 gitrepos = [document for _, document in resources if document.get("kind") == "GitRepo"]
 if len(gitrepos) != 1:
     fail(f"expected one root GitRepo, found {len(gitrepos)}")
-gitrepo_prefix = (
-    (gitrepos[0].get("metadata") or {}).get("name") if len(gitrepos) == 1 else None
-)
+gitrepo_prefix = (gitrepos[0].get("metadata") or {}).get("name") if len(gitrepos) == 1 else None
 if not gitrepo_prefix:
     fail("root GitRepo must define metadata.name")
 if len(gitrepos) == 1:
     configured_paths = (gitrepos[0].get("spec") or {}).get("paths", [])
-    if len(configured_paths) != len(EXPECTED_GITREPO_PATHS) or set(configured_paths) != set(EXPECTED_GITREPO_PATHS):
-        fail(
-            "root GitRepo paths must be exactly "
-            f"{EXPECTED_GITREPO_PATHS}, got {configured_paths}"
-        )
+    if len(configured_paths) != len(EXPECTED_GITREPO_PATHS) or set(configured_paths) != set(
+        EXPECTED_GITREPO_PATHS
+    ):
+        fail(f"root GitRepo paths must be exactly {EXPECTED_GITREPO_PATHS}, got {configured_paths}")
     for configured_path in configured_paths:
         if not (REPO_ROOT / configured_path).is_dir():
             fail(f"root GitRepo path does not exist: {configured_path}")
@@ -133,7 +134,9 @@ for directory, config in bundle_configs.items():
     relative = directory.relative_to(ROOT).as_posix().replace("/", "-")
     name = f"{gitrepo_prefix}-{relative}"
     if config.get("name") != name:
-        fail(f"{directory.relative_to(ROOT)}/fleet.yaml: name must be {name}, got {config.get('name')}")
+        fail(
+            f"{directory.relative_to(ROOT)}/fleet.yaml: name must be {name}, got {config.get('name')}"
+        )
     if (config.get("helm") or {}).get("releaseName") != name:
         fail(f"{directory.relative_to(ROOT)}/fleet.yaml: helm.releaseName must be {name}")
     bundles[name] = config
@@ -203,10 +206,7 @@ for path, resource in resources:
         "cluster.x-k8s.io/"
     ):
         if api_version != "cluster.x-k8s.io/v1beta2":
-            fail(
-                f"{path.relative_to(ROOT)}: {kind} must use "
-                "cluster.x-k8s.io/v1beta2"
-            )
+            fail(f"{path.relative_to(ROOT)}: {kind} must use cluster.x-k8s.io/v1beta2")
 
     if kind == "ClusterClass":
         refs = [
@@ -232,7 +232,8 @@ for path, resource in resources:
             for definition in patch.get("definitions", []):
                 selector = definition["selector"]
                 templates = [
-                    item for item in filter(None, refs)
+                    item
+                    for item in filter(None, refs)
                     if item["kind"] == selector["kind"]
                     and item["apiVersion"] == selector["apiVersion"]
                 ]
@@ -248,7 +249,9 @@ for path, resource in resources:
                         )
                     variable = operation.get("valueFrom", {}).get("variable")
                     if variable and variable.split(".")[0] not in variable_names | {"builtin"}:
-                        fail(f"{path.relative_to(ROOT)}: patch references unknown variable {variable}")
+                        fail(
+                            f"{path.relative_to(ROOT)}: patch references unknown variable {variable}"
+                        )
                     for template in templates:
                         if not resource_exists(template, namespace):
                             continue
@@ -261,21 +264,29 @@ for path, resource in resources:
                         try:
                             for part in parts:
                                 part = part.replace("~1", "/").replace("~0", "~")
-                                target = target[int(part)] if isinstance(target, list) else target[part]
+                                target = (
+                                    target[int(part)] if isinstance(target, list) else target[part]
+                                )
                         except (KeyError, IndexError, ValueError, TypeError):
-                            fail(f"{path.relative_to(ROOT)}: invalid patch path {operation['path']}")
+                            fail(
+                                f"{path.relative_to(ROOT)}: invalid patch path {operation['path']}"
+                            )
 
     if kind == "Cluster":
         topology = spec.get("topology") or {}
         class_ref = topology.get("classRef")
         if topology and not class_ref:
             fail(f"{path.relative_to(ROOT)}: topology must use classRef")
-        if class_ref and (
-            "cluster.x-k8s.io/v1beta2",
-            "ClusterClass",
-            class_ref.get("name"),
-            namespace,
-        ) not in resource_index:
+        if (
+            class_ref
+            and (
+                "cluster.x-k8s.io/v1beta2",
+                "ClusterClass",
+                class_ref.get("name"),
+                namespace,
+            )
+            not in resource_index
+        ):
             fail(
                 f"{path.relative_to(ROOT)}: topology references missing "
                 f"ClusterClass/{class_ref.get('name')}"
@@ -296,8 +307,7 @@ for path, resource in resources:
                 and "default" not in variable.get("schema", {}).get("openAPIV3Schema", {})
             }
             cluster_variables = {
-                variable.get("name")
-                for variable in topology.get("variables", []) or []
+                variable.get("name") for variable in topology.get("variables", []) or []
             }
             missing_variables = required_variables - cluster_variables
             if missing_variables:
@@ -309,14 +319,20 @@ for path, resource in resources:
                 item["name"]: item.get("schema", {}).get("openAPIV3Schema", {}).get("default")
                 for item in cluster_class.get("spec", {}).get("variables", [])
             }
-            values.update({item["name"]: item.get("value") for item in topology.get("variables", [])})
+            values.update(
+                {item["name"]: item.get("value") for item in topology.get("variables", [])}
+            )
             if values.get("vpcID") and not values.get("subnetID"):
                 fail(f"{path.relative_to(ROOT)}: vpcID requires subnetID")
             if values.get("subnetID") and not values.get("vpcID"):
                 fail(f"{path.relative_to(ROOT)}: subnetID requires vpcID")
             for name in ("apiServerAllowedCIDRs", "nodeCIDRs"):
                 for value in values.get(name) or []:
-                    if isinstance(value, str) and value.startswith("REPLACE_WITH_") and not args.deployment_check:
+                    if (
+                        isinstance(value, str)
+                        and value.startswith("REPLACE_WITH_")
+                        and not args.deployment_check
+                    ):
                         continue
                     try:
                         ipaddress.ip_network(value, strict=True)
@@ -340,7 +356,9 @@ for path, resource in resources:
                 if metadata.get("labels", {}).get("infrastructure") == "aws":
                     labels = metadata.get("labels", {})
                     if labels.get("ccm") != "aws-v136" or labels.get("ccm-version") != "1.36":
-                        fail(f"{path.relative_to(ROOT)}: v1.36 AWS cluster requires matching CCM labels")
+                        fail(
+                            f"{path.relative_to(ROOT)}: v1.36 AWS cluster requires matching CCM labels"
+                        )
         for field in ("controlPlaneRef", "infrastructureRef"):
             reference = spec.get(field)
             if reference and ("apiGroup" not in reference or "apiVersion" in reference):
@@ -352,9 +370,7 @@ for path, resource in resources:
                 )
 
     if kind == "MachinePool":
-        reference = (
-            spec.get("template", {}).get("spec", {}).get("infrastructureRef")
-        )
+        reference = spec.get("template", {}).get("spec", {}).get("infrastructureRef")
         if reference and ("apiGroup" not in reference or "apiVersion" in reference):
             fail(
                 f"{path.relative_to(ROOT)}: MachinePool infrastructureRef must use "
@@ -384,22 +400,30 @@ for path, resource in resources:
 
     if kind == "AWSClusterStaticIdentity" and "namespace" in metadata:
         fail(f"{path.relative_to(ROOT)}: AWSClusterStaticIdentity is cluster-scoped")
-    if kind == "AWSClusterStaticIdentity" and spec.get("allowedNamespaces") != {"list": ["default"]}:
+    if kind == "AWSClusterStaticIdentity" and spec.get("allowedNamespaces") != {
+        "list": ["default"]
+    }:
         fail(f"{path.relative_to(ROOT)}: AWS identity must be restricted to namespace default")
 
     if kind == "ClusterResourceSet":
         for reference in spec.get("resources", []):
             if not resource_exists({"apiVersion": "v1", **reference}, namespace):
-                fail(f"{path.relative_to(ROOT)}: missing ClusterResourceSet payload {reference['name']}")
+                fail(
+                    f"{path.relative_to(ROOT)}: missing ClusterResourceSet payload {reference['name']}"
+                )
         if metadata["name"] == "aws-ccm-v136":
-            if spec.get("strategy") != "Reconcile" or spec.get("clusterSelector", {}).get("matchLabels") != {
-                "ccm": "aws-v136", "ccm-version": "1.36"
-            }:
-                fail(f"{path.relative_to(ROOT)}: v136 CCM must reconcile only matching v1.36 clusters")
+            if spec.get("strategy") != "Reconcile" or spec.get("clusterSelector", {}).get(
+                "matchLabels"
+            ) != {"ccm": "aws-v136", "ccm-version": "1.36"}:
+                fail(
+                    f"{path.relative_to(ROOT)}: v136 CCM must reconcile only matching v1.36 clusters"
+                )
 
     if path.name == "clusterclass-v136.yaml":
         if "get.rke2.io" in json.dumps(resource) or "/etc/hosts" in json.dumps(resource):
-            fail(f"{path.relative_to(ROOT)}: versioned classes must use native bootstrap without subnet scans")
+            fail(
+                f"{path.relative_to(ROOT)}: versioned classes must use native bootstrap without subnet scans"
+            )
         if metadata.get("annotations", {}).get("objectset.rio.cattle.io/ignore"):
             fail(f"{path.relative_to(ROOT)}: versioned templates must not hide spec drift")
 
@@ -408,14 +432,13 @@ for path, resource in resources:
             if key.endswith((".yaml", ".yml")) and isinstance(value, str):
                 for number, embedded in enumerate(parse_yaml(path, value), start=1):
                     embedded_metadata = (
-                        embedded.get("metadata") or {}
-                        if isinstance(embedded, dict)
-                        else {}
+                        embedded.get("metadata") or {} if isinstance(embedded, dict) else {}
                     )
-                    if not isinstance(embedded, dict) or not embedded.get(
-                        "apiVersion"
-                    ) or not embedded.get("kind") or not embedded_metadata.get(
-                        "name"
+                    if (
+                        not isinstance(embedded, dict)
+                        or not embedded.get("apiVersion")
+                        or not embedded.get("kind")
+                        or not embedded_metadata.get("name")
                     ):
                         fail(
                             f"{path.relative_to(ROOT)} ConfigMap/{metadata['name']} "
@@ -435,7 +458,10 @@ for name in ("turtles", "providers"):
         platform_values[name] = documents[0]
 
 expected_providers = {
-    "bootstrapRKE2", "controlplaneRKE2", "infrastructureAWS", "infrastructureDocker"
+    "bootstrapRKE2",
+    "controlplaneRKE2",
+    "infrastructureAWS",
+    "infrastructureDocker",
 }
 providers = platform_values.get("providers", {}).get("providers", {})
 for name in expected_providers:
@@ -444,18 +470,33 @@ for name in expected_providers:
         fail(f"platform: {name} must be enabled with automatic updates disabled")
     if not re.fullmatch(r"v\d+\.\d+\.\d+", config.get("version", "")):
         fail(f"platform: {name} requires an explicit stable release")
-if providers.get("bootstrapRKE2", {}).get("version") != providers.get("controlplaneRKE2", {}).get("version"):
+if providers.get("bootstrapRKE2", {}).get("version") != providers.get("controlplaneRKE2", {}).get(
+    "version"
+):
     fail("platform: RKE2 bootstrap and control-plane versions differ")
-core = platform_values.get("turtles", {}).get("cluster-api-operator", {}).get("cluster-api", {}).get("core", {})
-if core.get("enableAutomaticUpdate") is not False or not re.fullmatch(r"v\d+\.\d+\.\d+", core.get("version", "")):
+core = (
+    platform_values.get("turtles", {})
+    .get("cluster-api-operator", {})
+    .get("cluster-api", {})
+    .get("core", {})
+)
+if core.get("enableAutomaticUpdate") is not False or not re.fullmatch(
+    r"v\d+\.\d+\.\d+", core.get("version", "")
+):
     fail("platform: core CAPI requires a pinned stable version and automatic updates disabled")
 if core.get("version") != providers.get("infrastructureDocker", {}).get("version"):
     fail("platform: core CAPI and CAPD versions differ")
-core_settings = platform_values.get("turtles", {}).get("cluster-api-operator", {}).get("cluster-api", {})
-core_secret = next((
-    resource for path, resource in resources
-    if path == ROOT / "platform/core-config.yaml" and resource["kind"] == "Secret"
-), {})
+core_settings = (
+    platform_values.get("turtles", {}).get("cluster-api-operator", {}).get("cluster-api", {})
+)
+core_secret = next(
+    (
+        resource
+        for path, resource in resources
+        if path == ROOT / "platform/core-config.yaml" and resource["kind"] == "Secret"
+    ),
+    {},
+)
 if (
     core_secret.get("metadata", {}).get("name") != core_settings.get("configSecret", {}).get("name")
     or core_secret.get("metadata", {}).get("namespace") != core.get("namespace")

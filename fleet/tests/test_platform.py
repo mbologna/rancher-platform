@@ -23,14 +23,18 @@ class PlatformTests(unittest.TestCase):
     def setUp(self):
         self.provider = {
             "metadata": {
-                "name": "aws", "namespace": "capa-system", "generation": 2,
+                "name": "aws",
+                "namespace": "capa-system",
+                "generation": 2,
                 "annotations": {"meta.helm.sh/release-name": "rancher-turtles-providers"},
             },
             "spec": {"name": "aws", "type": "infrastructure", "version": "v2.11.1"},
             "status": {
                 "installedVersion": "v2.11.1",
                 "phase": "Ready",
-                "conditions": [{"type": "ProviderInstalled", "status": "True", "observedGeneration": 2}],
+                "conditions": [
+                    {"type": "ProviderInstalled", "status": "True", "observedGeneration": 2}
+                ],
             },
         }
         self.expected = [("infrastructure", "aws", "capa-system", "v2.11.1")]
@@ -45,7 +49,9 @@ class PlatformTests(unittest.TestCase):
         self.assertEqual(platform.provider_errors([self.provider], expected), [])
 
     def test_hook_owned_core_passes(self):
-        self.provider["metadata"].update(namespace="cattle-capi-system", annotations={"helm.sh/hook": "post-install"})
+        self.provider["metadata"].update(
+            namespace="cattle-capi-system", annotations={"helm.sh/hook": "post-install"}
+        )
         self.provider["spec"].update(name="cluster-api", type="core")
         expected = [("core", "cluster-api", "cattle-capi-system", "v2.11.1")]
         self.assertEqual(platform.provider_errors([self.provider], expected), [])
@@ -53,36 +59,49 @@ class PlatformTests(unittest.TestCase):
     def test_duplicate_owners_fail(self):
         duplicate = copy.deepcopy(self.provider)
         duplicate["metadata"]["namespace"] = "another-namespace"
-        self.assertIn("found 2", platform.provider_errors([self.provider, duplicate], self.expected)[0])
+        self.assertIn(
+            "found 2", platform.provider_errors([self.provider, duplicate], self.expected)[0]
+        )
 
     def test_uninstalled_provider_fails(self):
         self.provider["status"]["conditions"][0]["status"] = "False"
-        self.assertIn("ProviderInstalled is not True", platform.provider_errors([self.provider], self.expected)[0])
+        self.assertIn(
+            "ProviderInstalled is not True",
+            platform.provider_errors([self.provider], self.expected)[0],
+        )
 
     def test_stale_status_fails(self):
         self.provider["status"]["conditions"][0]["observedGeneration"] = 1
         self.assertIn("stale", platform.provider_errors([self.provider], self.expected)[0])
 
     def test_one_lagging_condition_passes(self):
-        self.provider["status"]["conditions"].append({"type": "Ready", "status": "True", "observedGeneration": 1})
+        self.provider["status"]["conditions"].append(
+            {"type": "Ready", "status": "True", "observedGeneration": 1}
+        )
         self.assertEqual(platform.provider_errors([self.provider], self.expected), [])
 
     def test_wrong_version_fails(self):
         self.provider["status"]["installedVersion"] = "v2.10.2"
-        self.assertIn("version must be", platform.provider_errors([self.provider], self.expected)[0])
+        self.assertIn(
+            "version must be", platform.provider_errors([self.provider], self.expected)[0]
+        )
 
     def test_fleet_owned_provider_fails(self):
         self.provider["metadata"]["annotations"]["meta.helm.sh/release-name"] = "old-fleet-bundle"
-        self.assertIn("platform Helm release", platform.provider_errors([self.provider], self.expected)[0])
+        self.assertIn(
+            "platform Helm release", platform.provider_errors([self.provider], self.expected)[0]
+        )
 
     def test_schema_properties_are_not_schema_extensions(self):
-        schema = kubernetes_schema({
-            "type": "object",
-            "properties": {
-                "type": {"type": "string"},
-                "x-kubernetes-int-or-string": {"type": "boolean"},
-            },
-        })
+        schema = kubernetes_schema(
+            {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string"},
+                    "x-kubernetes-int-or-string": {"type": "boolean"},
+                },
+            }
+        )
         Draft7Validator(schema).validate({"type": "string", "x-kubernetes-int-or-string": False})
 
     def test_nullable_and_integer_or_string(self):
@@ -113,44 +132,62 @@ class PlatformTests(unittest.TestCase):
         ccm_rules = [rule for rule in rules if rule.get("matchDepNames") == [ccm]]
         self.assertEqual(len(ccm_rules), 1)
         self.assertTrue(ccm_rules[0]["automerge"])
-        self.assertTrue(any(
-            rule.get("separateMinorPatch") is True
-            and {"rancher/rke2", "kindest/node", ccm} <= set(rule["matchDepNames"])
-            for rule in rules
-        ))
-        self.assertTrue(any(
-            rule.get("enabled") is False and rule.get("matchUpdateTypes") == ["major", "minor"]
-            and {"rancher/rke2", "kindest/node", ccm} <= set(rule.get("matchDepNames", []))
-            for rule in rules
-        ))
+        self.assertTrue(
+            any(
+                rule.get("separateMinorPatch") is True
+                and {"rancher/rke2", "kindest/node", ccm} <= set(rule["matchDepNames"])
+                for rule in rules
+            )
+        )
+        self.assertTrue(
+            any(
+                rule.get("enabled") is False
+                and rule.get("matchUpdateTypes") == ["major", "minor"]
+                and {"rancher/rke2", "kindest/node", ccm} <= set(rule.get("matchDepNames", []))
+                for rule in rules
+            )
+        )
         # rancher_version is the one Rancher pin Renovate moves; nothing tracks the fleet/ copy, which
         # sync-providers.py derives. Its minors and majors wait for a person, and no later rule turns
         # automerge back on.
         self.assertNotIn("rancher/rancher", json.dumps(config))
         manual = [
-            rule for rule in rules
-            if "rancher" in rule.get("matchDepNames", []) and rule.get("matchUpdateTypes") == ["minor", "major"]
+            rule
+            for rule in rules
+            if "rancher" in rule.get("matchDepNames", [])
+            and rule.get("matchUpdateTypes") == ["minor", "major"]
         ]
         self.assertEqual(len(manual), 1)
         self.assertFalse(manual[0]["automerge"])
         self.assertIn("manual-review", manual[0]["labels"])
-        self.assertFalse(any(rule.get("automerge") for rule in rules[rules.index(manual[0]) + 1:]
-                             if "rancher" in rule.get("matchDepNames", [])))
+        self.assertFalse(
+            any(
+                rule.get("automerge")
+                for rule in rules[rules.index(manual[0]) + 1 :]
+                if "rancher" in rule.get("matchDepNames", [])
+            )
+        )
         # The rest of the stack follows Rancher's Turtles catalogue.
         followers = {
-            "rancher/turtles", "kubernetes-sigs/cluster-api",
-            "kubernetes-sigs/cluster-api-provider-aws", "rancher/cluster-api-provider-rke2",
+            "rancher/turtles",
+            "kubernetes-sigs/cluster-api",
+            "kubernetes-sigs/cluster-api-provider-aws",
+            "rancher/cluster-api-provider-rke2",
         }
         disabled = [
-            rule for rule in rules
-            if rule.get("enabled") is False and set(rule.get("matchDepNames", [])) == followers
+            rule
+            for rule in rules
+            if rule.get("enabled") is False
+            and set(rule.get("matchDepNames", [])) == followers
             and not any(key.startswith("match") and key != "matchDepNames" for key in rule)
         ]
         self.assertEqual(len(disabled), 1)
-        self.assertFalse(any(
-            rule.get("enabled") is True and followers & set(rule.get("matchDepNames", []))
-            for rule in rules[rules.index(disabled[0]) + 1:]
-        ))
+        self.assertFalse(
+            any(
+                rule.get("enabled") is True and followers & set(rule.get("matchDepNames", []))
+                for rule in rules[rules.index(disabled[0]) + 1 :]
+            )
+        )
         # Renovate ignores unstable versions by default; only check it is not switched off.
         self.assertIsNot(config.get("ignoreUnstable", True), False)
         self.assertIn("fleet/clusterclasses/aws-rke2/aws-ccm.yaml", config["ignorePaths"])
@@ -169,15 +206,22 @@ class PlatformTests(unittest.TestCase):
                     ROOT / "clusterclasses/aws-rke2/aws-ccm-v136.yaml",
                     ROOT.parent / ".github/workflows/fleet-validate.yaml",
                 ):
-                    matches.extend(match.groupdict() for match in re.finditer(expression, path.read_text()))
+                    matches.extend(
+                        match.groupdict() for match in re.finditer(expression, path.read_text())
+                    )
         dependencies = {match["depName"] for match in matches}
-        self.assertTrue({
-            "rancher/turtles", "rancher/rke2",
-            "kubernetes-sigs/cluster-api", "kubernetes-sigs/cluster-api-provider-aws",
-            "rancher/cluster-api-provider-rke2", "kindest/node",
-            "registry.k8s.io/provider-aws/cloud-controller-manager",
-            "mikefarah/yq",
-        }.issubset(dependencies))
+        self.assertTrue(
+            {
+                "rancher/turtles",
+                "rancher/rke2",
+                "kubernetes-sigs/cluster-api",
+                "kubernetes-sigs/cluster-api-provider-aws",
+                "rancher/cluster-api-provider-rke2",
+                "kindest/node",
+                "registry.k8s.io/provider-aws/cloud-controller-manager",
+                "mikefarah/yq",
+            }.issubset(dependencies)
+        )
         rke2 = next(match for match in matches if match["depName"] == "rancher/rke2")
         self.assertIn("build", rke2["versioning"])
 
