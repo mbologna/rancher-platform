@@ -1,0 +1,41 @@
+# Optional encryption of the OpenTofu state and plans (OpenTofu 1.8+; Terraform ignores .tofu
+# files, so it keeps working without this). Copy to encryption.tofu (gitignored) and export the
+# passphrase before every tofu command:
+#   export TF_VAR_state_passphrase='<16 or more characters, kept in a password manager>'
+# The first apply encrypts an existing unencrypted state. The fallback blocks let OpenTofu read
+# that state once; delete them afterwards so an unencrypted state is refused. Losing the
+# passphrase loses the state. For a key in AWS KMS instead, see
+# https://opentofu.org/docs/language/state/encryption/#aws-kms.
+variable "state_passphrase" {
+  description = "Passphrase (16+ characters) that encrypts the state and plans."
+  type        = string
+  sensitive   = true
+}
+
+terraform {
+  encryption {
+    key_provider "pbkdf2" "passphrase" {
+      passphrase = var.state_passphrase
+    }
+
+    method "aes_gcm" "passphrase" {
+      keys = key_provider.pbkdf2.passphrase
+    }
+
+    method "unencrypted" "migrate" {}
+
+    state {
+      method = method.aes_gcm.passphrase
+      fallback {
+        method = method.unencrypted.migrate
+      }
+    }
+
+    plan {
+      method = method.aes_gcm.passphrase
+      fallback {
+        method = method.unencrypted.migrate
+      }
+    }
+  }
+}

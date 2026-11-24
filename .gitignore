@@ -44,4 +44,5 @@ terraform/crash.log
 terraform/generated/
 # Optional remote state backend (copy of backend.tf.example) and workspace state
 terraform/backend.tf
+terraform/encryption.tofu
 terraform/terraform.tfstate.d/
