@@ -15,3 +15,10 @@ fleet = ["jsonschema==4.26.0"]
 
 [tool.uv]
 package = false
+
+[tool.ruff]
+line-length = 140
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]

@@ -27,6 +27,11 @@ repos:
     hooks:
       - id: actionlint
 
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff-check
+
   - repo: https://github.com/ansible/ansible-lint
     rev: v26.11.0
     hooks:

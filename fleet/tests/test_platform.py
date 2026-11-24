@@ -10,10 +10,9 @@ from pathlib import Path
 
 from jsonschema import Draft7Validator
 
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from schema_validation import kubernetes_schema
+from schema_validation import kubernetes_schema  # noqa: E402 (after the sys.path entry)
 
 spec = importlib.util.spec_from_file_location("check_platform", ROOT / "scripts/check-platform.py")
 platform = importlib.util.module_from_spec(spec)
