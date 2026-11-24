@@ -91,7 +91,7 @@ host in the inventory, or for one run with `-e`. `<ip>` below is the host's addr
 | `rke2_kubeconfig` | `/etc/rancher/rke2/rke2.yaml` | RKE2 admin kubeconfig on the host. |
 | `rke2_kubeconfig_external` | `{{ rancher_dev_dir }}/rke2-kubeconfig-external.yaml` | RKE2 kubeconfig with the server set to `https://<rancher_hostname>:6443`. |
 | `rke2_snapshot_dir` | `/var/lib/rancher/rke2/server/db/snapshots` | Where RKE2 writes etcd snapshots. |
-| `rke2_install_prefix` | `/usr/local` | RKE2 install prefix, pinned because get.rke2.io falls back to `/opt/rke2` when `/usr/local` is a mount point (Leap 16 btrfs). |
+| `rke2_install_prefix` | `/usr/local` | RKE2 install prefix, pinned because the RKE2 install script falls back to `/opt/rke2` when `/usr/local` is a mount point (Leap 16 btrfs). |
 | `rke2_bin` | `{{ rke2_install_prefix }}/bin/rke2` | RKE2 binary. |
 | `bin_dir` | `/usr/local/bin` | Directory for `kubectl` and `helm`. |
 | `kubectl_bin`, `helm_bin` | `{{ bin_dir }}/kubectl`, `{{ bin_dir }}/helm` | Binaries. |
