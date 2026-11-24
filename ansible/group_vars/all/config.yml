@@ -57,7 +57,7 @@ rancher_letsencrypt_email: ""
 rancher_letsencrypt_environment: production
 
 # renovate: datasource=github-releases depName=helm/helm
-helm_version: "v3.22.1"
+helm_version: "v4.3.2"
 # renovate: datasource=github-releases depName=databus23/helm-diff
 helm_diff_version: "v3.15.15"
 

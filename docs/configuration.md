@@ -107,7 +107,7 @@ Renovate keeps these current; the values are in `config.yml`.
 | `cert_manager_version` | cert-manager |
 | `rancher_version` | Rancher chart |
 | `rancher_ai_agent_version`, `rancher_ai_ui_version` | Rancher AI agent chart and UI extension |
-| `helm_version`, `helm_diff_version` | Helm 3 and the helm-diff plugin |
+| `helm_version`, `helm_diff_version` | Helm 4 and the helm-diff plugin |
 | `k8s_python_kubernetes_version`, `k8s_python_pyyaml_version` | Python packages of the virtualenv the Kubernetes modules run in |
 | `registry_cache_image_version` | `registry` image of the image cache |
 | `kind_version`, `kind_node_version` | kind and its default node image |
