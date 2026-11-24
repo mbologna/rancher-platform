@@ -1,4 +1,4 @@
-# Latest matching AMI (openSUSE Leap 16.0 by default: free, no subscription required)
+# Latest matching AMI (openSUSE Leap 16.1 by default: free, no subscription required)
 data "aws_ami" "opensuse" {
   most_recent = true
   owners      = [var.ami_owner]

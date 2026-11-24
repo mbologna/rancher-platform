@@ -3,7 +3,8 @@
 rancher-platform installs everything on one Linux host that you reach over SSH as root or as a
 user with passwordless sudo. The host needs:
 
-- openSUSE Leap 16.0, SLES 15 SP7, or Ubuntu 22.04 or 24.04 (tested on 17 October 2026);
+- openSUSE Leap 16.1 (tested on 24 November 2026), or Leap 16.0, SLES 15 SP7, or Ubuntu 22.04 or
+  24.04 (tested on 17 October 2026);
 - 4 vCPUs, 16 GB RAM and 100 GB disk, plus about 1 GB RAM per kind cluster and 2 GB per node
   of a cluster that Rancher provisions;
 - ports 80 and 443 reachable from your browser.
@@ -24,7 +25,7 @@ address. Set `rancher_hostname` in the inventory to use another name.
 
 ## A new host on AWS
 
-`terraform/` creates a `t3.xlarge` instance (4 vCPUs, 16 GB RAM) running openSUSE Leap 16.0, with
+`terraform/` creates a `t3.xlarge` instance (4 vCPUs, 16 GB RAM) running openSUSE Leap 16.1, with
 a 100 GB encrypted disk and an Elastic IP, and writes the inventory to
 `terraform/generated/hosts.yml`, with Rancher on `rancher.<elastic-ip>.sslip.io`. You need
 [OpenTofu](https://opentofu.org/) or Terraform 1.6+ and AWS credentials.
@@ -47,7 +48,7 @@ next apply encrypts the existing state; the file explains how to finish the migr
 
 ## A VM on a Mac
 
-[Lima](https://lima-vm.io/) starts an openSUSE Leap 16 VM with 4 vCPUs, 12 GiB RAM and a 60 GiB
+[Lima](https://lima-vm.io/) starts an openSUSE Leap 16.1 VM with 4 vCPUs, 12 GiB RAM and a 60 GiB
 disk, on an address the Mac can reach, and writes `ansible/inventory/lima.yml`, which
 `manage.sh` uses while there is no `inventory/hosts.yml`:
 
