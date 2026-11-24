@@ -120,26 +120,14 @@ def validate_schemas(root, resources, platform):
     if turtles is None:
         errors.append("platform/turtles-values.yaml: missing pinned chart-version")
         return errors
-    for chart, name in (("rancher-turtles", "turtles"), ("rancher-turtles-providers", "providers")):
-        url = f"https://raw.githubusercontent.com/rancher/turtles/{turtles[1]}/charts/{chart}/values.schema.json"
-        for error in Draft7Validator(json.loads(fetch(url))).iter_errors(drop_nulls(platform[name])):
-            errors.append(f"platform/{name}-values.yaml: {error.message}")
     if not errors:
         errors.extend(validate_charts(root, turtles[1]))
     return errors
 
 
-def drop_nulls(value):
-    """Helm deletes keys set to null before it validates the merged values."""
-    if isinstance(value, dict):
-        return {key: drop_nulls(item) for key, item in value.items() if item is not None}
-    if isinstance(value, list):
-        return [drop_nulls(item) for item in value]
-    return value
-
-
 def validate_charts(root, version):
-    """Render both platform charts without contacting Kubernetes."""
+    """Render both platform charts without contacting Kubernetes; Helm checks the values against
+    each chart's values.schema.json."""
     url = f"https://api.github.com/repos/rancher/turtles/tarball/{version}"
     try:
         with urllib.request.urlopen(url, timeout=60) as response:

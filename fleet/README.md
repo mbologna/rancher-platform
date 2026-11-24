@@ -195,7 +195,8 @@ python3 -m unittest discover -s tests
 
 `validate-repo.py` checks YAML, Fleet dependencies, template references, patch paths, CIDRs
 and version conventions. `--schemas` downloads the pinned CRDs, Kubernetes schemas and Turtles
-charts, then validates every resource and renders both platform charts offline. Static checks
+charts, then validates every resource and renders both platform charts offline, which also
+checks the values files against the charts' schemas. Static checks
 do not cover CEL rules, admission defaults or a real bootstrap.
 
 GitHub Actions runs three workflows:
