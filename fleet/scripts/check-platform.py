@@ -66,6 +66,10 @@ def provider_errors(items, expected):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--context", required=True, help="Management kubecontext; no default")
+    parser.add_argument(
+        "--without", action="append", choices=("aws", "docker"), default=[],
+        help="Skip the checks of an infrastructure provider the deploy left out; repeatable",
+    )
     args = parser.parse_args()
     errors = []
 
@@ -85,6 +89,8 @@ def main():
         ("infrastructureAWS", "infrastructure", "aws"),
         ("infrastructureDocker", "infrastructure", "docker"),
     ):
+        if provider_type == "infrastructure" and name in args.without:
+            continue
         expected.append((provider_type, name, values[key]["namespace"], values[key]["version"]))
     errors.extend(provider_errors(kubectl("get", "capiproviders.turtles-capi.cattle.io", "-A")["items"], expected))
     server = kubectl("version")["serverVersion"]
@@ -95,9 +101,13 @@ def main():
     if not kubectl("get", "settings.management.cattle.io", "server-url").get("value"):
         errors.append("Rancher server-url is empty: set it (first UI login) before creating clusters")
     deployments = kubectl("get", "deployments", "-A")["items"]
-    for name in ("capi-controller-manager", "capa-controller-manager", "capd-controller-manager",
-                 "rke2-bootstrap-controller-manager", "rke2-control-plane-controller-manager",
-                 "rancher-turtles-controller-manager", "rancher"):
+    controllers = ["capi-controller-manager", "rke2-bootstrap-controller-manager",
+                   "rke2-control-plane-controller-manager", "rancher-turtles-controller-manager", "rancher"]
+    controllers += [
+        controller for name, controller in (("aws", "capa-controller-manager"), ("docker", "capd-controller-manager"))
+        if name not in args.without
+    ]
+    for name in controllers:
         matches = [item for item in deployments if item["metadata"]["name"] == name]
         if len(matches) != 1:
             errors.append(f"Deployment/{name}: expected one controller, found {len(matches)}")
@@ -146,6 +156,7 @@ def main():
         "dockermachinetemplates.infrastructure.cluster.x-k8s.io",
         "dockerclustertemplates.infrastructure.cluster.x-k8s.io",
     }
+    required = {crd for crd in required if not any(crd.startswith(name) for name in args.without)}
     for crd in kubectl("get", "crds")["items"]:
         if crd["metadata"]["name"] not in required:
             continue
@@ -156,7 +167,7 @@ def main():
             errors.append(f"{crd['metadata']['name']}: CRD is not Established")
     if required:
         errors.append(f"Missing CRDs: {', '.join(sorted(required))}")
-    for name, keys in (
+    for name, keys in () if "aws" in args.without else (
         ("cluster-identity", {"AccessKeyID", "SecretAccessKey"}),
         ("capa-credentials", {"AWS_B64ENCODED_CREDENTIALS"}),
     ):

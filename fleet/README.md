@@ -71,6 +71,8 @@ imported into Rancher. The EKS example has not been live-tested.
    The first fails while placeholders remain. The second checks provider versions and
    ownership, controller availability, feature flags, CRDs, Rancher's `server-url`, and that
    no example cluster name already exists. It does not test AWS permissions or networking.
+   Add `--without aws` when the deploy had no AWS credentials, and `--without docker` when it
+   ran without CAPD.
 
 4. **Register the GitRepo.** Point `spec.repo` and `spec.branch` in
    [`gitrepo.yaml`](gitrepo.yaml) at your fork (its paths are already under `fleet/`), then
