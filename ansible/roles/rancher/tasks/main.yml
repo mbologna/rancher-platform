@@ -26,13 +26,22 @@
   ansible.builtin.set_fact:
     rancher_installed_version: "{{ rancher_release.status.chart | default('') | regex_replace('^rancher-', '') }}"
 
+- name: Use the chart from the development build's commit
+  ansible.builtin.include_tasks: dev_chart.yml
+  when: rancher_dev_build | bool
+
+# A development build is newer than the releases of its minor, so compare it by minor.
 - name: Refuse to downgrade Rancher
+  vars:
+    rancher_compared_version: >-
+      {{ rancher_installed_version | regex_replace('^([0-9]+[.][0-9]+)[.].*$', '\1.0-head')
+         if rancher_dev_build else rancher_installed_version }}
   ansible.builtin.assert:
     that: >-
       rancher_installed_version == ''
-      or rancher_version is version(rancher_installed_version, '>=', version_type='semver')
+      or rancher_chart_version is version(rancher_compared_version, '>=', version_type='semver')
     fail_msg: >-
-      Rancher {{ rancher_installed_version }} is installed and cannot be downgraded to {{ rancher_version }}.
+      Rancher {{ rancher_installed_version }} is installed and cannot be downgraded to {{ rancher_chart_version }}.
       Restore a snapshot taken before the upgrade instead (./manage.sh snapshots, ./manage.sh restore <name>).
     quiet: true
 
@@ -49,9 +58,9 @@
 - name: Install or upgrade Rancher to {{ rancher_target }}
   kubernetes.core.helm:
     name: rancher
-    chart_ref: rancher
-    chart_repo_url: "{{ rancher_chart_repo }}"
-    chart_version: "{{ rancher_version }}"
+    chart_ref: "{{ rancher_chart_dir if rancher_dev_build else 'rancher' }}"
+    chart_repo_url: "{{ omit if rancher_dev_build else rancher_chart_repo }}"
+    chart_version: "{{ omit if rancher_dev_build else rancher_version }}"
     release_namespace: cattle-system
     create_namespace: true
     binary_path: "{{ helm_bin }}"
@@ -102,7 +111,7 @@
   loop_control:
     label: "{{ item.key }}"
 
-# A moving tag (head) keeps its name while the image changes; restart Rancher when the registry has a
+# The latest tag keeps its name while the image changes; restart Rancher when the registry has a
 # newer digest than the running pod, or always for registries other than Docker Hub.
 - name: Pull a newer image for tag {{ rancher_image_tag }}
   ansible.builtin.include_tasks: refresh.yml

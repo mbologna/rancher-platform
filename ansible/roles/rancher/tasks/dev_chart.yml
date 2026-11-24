@@ -1,0 +1,70 @@
+---
+# The released chart stops matching a development build when Rancher changes how it is packaged:
+# v2.16 runs rancher/rancher-server and reads its system charts from an assets image the chart
+# adds. Install the chart from the build's own commit instead.
+
+# A moving tag such as head can be rebuilt at any time; pin it to the commit tag with its digest.
+- name: Find the commit tag of {{ rancher_image_tag }}
+  when: rancher_build_commit | length == 0
+  block:
+    - name: Require a Docker Hub image to find the commit
+      ansible.builtin.assert:
+        that: rancher_image_on_docker_hub | bool
+        fail_msg: >-
+          Cannot find the commit of {{ rancher_image_repo }}:{{ rancher_image_tag }} outside Docker Hub;
+          set rancher_image_tag to a v<minor>-<commit>-head tag.
+        quiet: true
+
+    - name: Read the image digest of {{ rancher_image_repo ~ ":" ~ rancher_image_tag }}
+      ansible.builtin.uri:
+        url: https://hub.docker.com/v2/repositories/{{ rancher_image_repo }}/tags/{{ rancher_image_tag }}
+      register: rancher_moving_tag
+
+    - name: Read the recent commit tags of {{ rancher_image_repo }}
+      ansible.builtin.uri:
+        url: https://hub.docker.com/v2/repositories/{{ rancher_image_repo }}/tags?name=-head&page_size=100
+      register: rancher_commit_tags
+
+    - name: Pin the moving tag to its commit tag
+      ansible.builtin.set_fact:
+        rancher_build_tag: >-
+          {{ rancher_commit_tags.json.results | selectattr('digest', 'eq', rancher_moving_tag.json.digest)
+             | map(attribute='name') | select('match', '^v[0-9.]+-[0-9a-f]{40}-head$') | first | default('') }}
+
+    - name: Require a commit tag for {{ rancher_image_tag }}
+      ansible.builtin.assert:
+        that: rancher_build_commit | length > 0
+        fail_msg: >-
+          No recent tag of {{ rancher_image_repo }} names the commit of {{ rancher_image_tag }};
+          set rancher_image_tag to a v<minor>-<commit>-head tag.
+        quiet: true
+
+- name: Unpack the Rancher chart of {{ rancher_build_tag }}
+  ansible.builtin.unarchive:
+    src: https://github.com/rancher/rancher/archive/{{ rancher_build_commit }}.tar.gz
+    dest: "{{ rancher_dev_dir }}"
+    remote_src: true
+    include: ["rancher-{{ rancher_build_commit }}/chart"]
+    creates: "{{ rancher_chart_dir }}/Chart.yaml"
+
+# The placeholders Rancher's chart build fills (scripts/chart/build); v2.16 renamed %VERSION%.
+- name: Set the chart version and default image tag
+  ansible.builtin.replace:
+    path: "{{ rancher_chart_dir }}/Chart.yaml"
+    regexp: "{{ item.placeholder }}"
+    replace: "{{ item.value }}"
+  loop:
+    - {placeholder: '0\.0\.0-VERSION|%VERSION%', value: "{{ rancher_chart_version }}"}
+    - {placeholder: "%APP_VERSION%", value: "{{ rancher_build_tag }}"}
+  loop_control:
+    label: "{{ item.value }}"
+
+- name: Read the chart's default image
+  ansible.builtin.slurp:
+    src: "{{ rancher_chart_dir }}/values.yaml"
+  register: rancher_chart_values
+
+# The snapshot and refresh tasks compare the running image with this repository.
+- name: Use the image repository of the chart
+  ansible.builtin.set_fact:
+    rancher_image_repo: "{{ rancher_image or (rancher_chart_values.content | b64decode | from_yaml).image.repository }}"

@@ -16,8 +16,8 @@ host in the inventory, or for one run with `-e`. `<ip>` below is the host's addr
 | `rancher_letsencrypt_environment` | `production` | `production` or `staging` (untrusted certificates, looser rate limits). |
 | `rancher_chart_channel` | `stable` | `stable`, `latest` (release candidates) or `alpha`; pair it with `rancher_version`. |
 | `rancher_chart_repo` | `https://releases.rancher.com/server-charts/{{ rancher_chart_channel }}` | Chart repository. |
-| `rancher_image` | `""` | Image repository that replaces `rancher/rancher`, for example your own build. |
-| `rancher_image_tag` | `""` | Rancher image tag, such as `head` or `v2.15-head`, on the pinned chart. |
+| `rancher_image` | `""` | Image repository that replaces the chart's (`rancher/rancher`, or `rancher/rancher-server` from v2.16), for example your own build. |
+| `rancher_image_tag` | `""` | Rancher image tag. Development builds (`head`, `v2.15-head`, `v2.17-<commit>-head`) use the chart from their commit; other tags use the pinned chart. |
 | `rancher_extra_values` | `{}` | Chart values merged over the playbook's own. |
 | `rancher_settings` | `{}` | Rancher settings by name, such as `ui-dashboard-index`. |
 | `rancher_ai_enabled` | `true` | Install the Rancher AI agent, MCP server and UI extension; configure the LLM in the UI. `false` leaves an existing installation alone. |
