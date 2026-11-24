@@ -13,6 +13,8 @@ rke2_etcd_s3_bucket: ""
 rke2_etcd_s3_region: us-east-1
 rke2_etcd_s3_folder: ""
 rke2_etcd_s3_endpoint: s3.amazonaws.com
+# true for an S3-compatible endpoint served over plain HTTP, such as a local MinIO.
+rke2_etcd_s3_insecure: false
 
 # renovate: datasource=github-releases depName=cert-manager/cert-manager
 cert_manager_version: "v1.21.3"

@@ -17,7 +17,7 @@ Commands:
   kubeconfig         Write a fresh kubeconfig to ~/.kube/rancher-platform.yaml
   snapshot [name]    Save an etcd snapshot of RKE2 and Rancher (default name: manual)
   snapshots          List etcd snapshots
-  restore <name>     Restore RKE2 and Rancher from a snapshot (kind clusters keep running)
+  restore <name>     Restore RKE2 and Rancher from a snapshot, local or in S3 (kind clusters keep running)
   uninstall-rancher  Remove Rancher, Rancher AI and cert-manager (RKE2 stays)
   help               Show this help
 

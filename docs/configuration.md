@@ -32,6 +32,7 @@ host in the inventory, or for one run with `-e`. `<ip>` below is the host's addr
 | `rke2_etcd_s3_region` | `us-east-1` | Bucket region. |
 | `rke2_etcd_s3_folder` | `""` | Folder in the bucket. |
 | `rke2_etcd_s3_endpoint` | `s3.amazonaws.com` | S3 endpoint. |
+| `rke2_etcd_s3_insecure` | `false` | Reach the endpoint over plain HTTP, as a local MinIO may need. |
 
 ## Host
 
@@ -132,4 +133,5 @@ Set these in `secrets.yml`. Encrypt the file with `ansible-vault` if it holds cl
 | `capa_aws_access_key_id`, `capa_aws_secret_access_key` | AWS keys for CAPA, stored as the `capa-credentials` and `cluster-identity` Secrets; setting them enables the AWS provider. |
 | `registry_cache_dockerhub_username`, `registry_cache_dockerhub_password` | Docker Hub account for the image cache; an access token works as the password. |
 | `rke2_etcd_s3_access_key`, `rke2_etcd_s3_secret_key` | S3 keys for etcd snapshot uploads. |
+| `rke2_token` | The RKE2 cluster token, which a rebuilt host needs to restore the old cluster's snapshots ([Snapshots and restore](snapshots.md#restore-on-a-rebuilt-host)). |
 | `harbor_admin_password` | Harbor `admin` password for `helm_charts_harbor`. Defaults to `rancher_bootstrap_password`. |
