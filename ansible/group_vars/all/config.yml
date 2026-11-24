@@ -69,7 +69,8 @@ capd_enabled: "{{ install_docker }}"
 
 # Registry cache: one pull-through proxy (Docker's registry image) per upstream registry on this host,
 # with the cache in a Docker volume rp-registry-<registry>. RKE2 and the kind clusters pull through it and
-# fall back to the upstream when it is down, so resets and new clusters reuse cached images. Needs Docker.
+# fall back to the upstream when it is down, so new and redeployed clusters reuse cached images (a reset
+# deletes the caches). Needs Docker.
 # For Docker Hub's higher pull limit, set registry_cache_dockerhub_username/password in secrets.yml.
 registry_cache_enabled: false
 registry_cache_upstreams:
