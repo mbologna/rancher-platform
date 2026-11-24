@@ -184,13 +184,13 @@ gitrepo.yaml      Fleet GitRepo for the three bundle directories
 
 ## Development
 
-Requirements: Python 3.12 or newer, [yq][yq] v4.44.3 or newer and Helm v4 (CI renders the charts with the version in `.github/workflows/fleet-validate.yaml`).
+Requirements: [uv][uv], [yq][yq] v4.44.3 or newer and Helm v4 (CI renders the charts with the
+versions in `.github/workflows/fleet-validate.yaml`). uv installs the Python and the packages
+that `uv.lock` pins.
 
 ```bash
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements-validation.txt
-python3 scripts/validate-repo.py --schemas
-python3 -m unittest discover -s tests
+uv run --group fleet python scripts/validate-repo.py --schemas
+uv run --group fleet python -m unittest discover -s tests
 ```
 
 `validate-repo.py` checks YAML, Fleet dependencies, template references, patch paths, CIDRs
@@ -235,4 +235,5 @@ migration.
 
 [preset]: https://github.com/mbologna/.github/blob/main/renovate-config.json
 [catalog]: https://github.com/rancher/turtles/blob/main/internal/controllers/clusterctl/config-prime.yaml
+[uv]: https://docs.astral.sh/uv/
 [yq]: https://github.com/mikefarah/yq

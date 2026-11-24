@@ -1,2 +1,0 @@
-# pre-commit for the lint workflow; Renovate keeps it current.
-pre-commit==4.7.0

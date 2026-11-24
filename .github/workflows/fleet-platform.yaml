@@ -74,14 +74,15 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/sync-providers.py --check
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
-        with:
-          python-version: "3.15"
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
 
+      # ansible-core from uv.lock, in the repository's .venv, on PATH for the later steps.
       - name: Install Ansible
         working-directory: ansible
         run: |
-          pip install -r requirements-ci.txt
+          uv sync --locked --only-group ansible
+          export PATH="${GITHUB_WORKSPACE}/.venv/bin:${PATH}"
+          echo "${GITHUB_WORKSPACE}/.venv/bin" >> "${GITHUB_PATH}"
           ./manage.sh install
 
       # The runner is the target host. Docker is preinstalled, so only CAPD's network is set up.

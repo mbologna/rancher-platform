@@ -31,16 +31,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.15"
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
 
       - name: Run pre-commit
         env:
           SKIP: terraform_fmt,terraform_tflint
-        run: |
-          pip install -r .github/requirements-lint.txt
-          pre-commit run --all-files --show-diff-on-failure
+        run: uv run --locked --only-group lint pre-commit run --all-files --show-diff-on-failure
 
   # Relative links and #anchors between the Markdown files. --offline skips
   # external URLs, so the check does not depend on other sites being up.

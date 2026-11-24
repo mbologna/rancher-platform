@@ -1,5 +1,5 @@
 ---
-# Run locally: pre-commit install && pre-commit run --all-files (CI runs the same hooks)
+# Run locally: uv run --group lint pre-commit run --all-files (CI runs the same hooks)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
