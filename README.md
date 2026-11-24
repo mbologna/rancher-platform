@@ -92,9 +92,9 @@ inventory, or for one run with `-e`. Each page explains the settings, caveats an
 | Feature | What it gives you | Default |
 |---|---|---|
 | [Rancher AI](docs/rancher-ai.md) | Liz, the Rancher AI Assistant: agent, MCP server and UI extension; you configure the LLM in the UI. | on |
-| [Downstream clusters](docs/downstream-clusters.md) | kind clusters imported into Rancher, or RKE2 clusters that Rancher provisions on Docker containers. | off |
+| [Downstream clusters](docs/downstream-clusters.md) | kind clusters imported into Rancher, or RKE2 clusters that Rancher provisions on Docker containers to test custom-cluster provisioning. | off |
 | [Fleet apps](docs/fleet-apps.md) | Apps from Git repositories on every cluster, four samples, and Ingresses at `http://<app>.<ip>.sslip.io`. | off |
-| [Cluster API](docs/cluster-api.md) | CAPI providers for [Rancher Turtles](https://turtles.docs.rancher.com/), with ClusterClasses and example clusters on Docker, AWS and EKS in [`fleet/`](fleet/README.md). | off |
+| [Cluster API](docs/cluster-api.md) | CAPI providers for [Rancher Turtles](https://turtles.docs.rancher.com/), with ClusterClasses and example clusters on Docker, AWS and EKS in [`fleet/`](fleet/README.md); the preferred way to run RKE2 on Docker. | off |
 | [Helm charts](docs/helm-charts.md) | Charts on the Rancher cluster; presets for Monitoring, Backups, Kubewarden, Longhorn and Harbor. | off |
 | [Snapshots and restore](docs/snapshots.md) | etcd snapshots every 12 hours and on demand, optional S3 upload, and restore. | on |
 | [Upgrades and development builds](docs/upgrades.md) | Guarded upgrades with a snapshot first; release candidates, alphas and nightly `head` builds. | |

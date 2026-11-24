@@ -12,8 +12,8 @@ __pycache__/
 *.py[co]
 
 # Python virtual environments
-/venv/
-/.venv/
+venv/
+.venv/
 /env/
 
 # IDE and editor files

@@ -69,8 +69,11 @@ worker readiness and application health before proceeding. These manifests suppl
 v1.36 destination; they do not automate the intermediate rollouts.
 
 Legacy classes and AWS templates remain in the same bundles with their original names.
-Their old ignore rules are scoped to those exact names. The new `*-v136` templates do not
-hide spec drift. Future template changes need new names, not edits to already-published specs.
+Their `objectset.rio.cattle.io/ignore` annotations are scoped to those exact names; the new
+`*-v136` templates do not carry them. Fleet still ignores the `spec` of every AWS cluster and
+machine template, legacy and `-v136` alike (`comparePatches` in
+`clusterclasses/aws-rke2/fleet.yaml`), because CAPA rejects any spec change. Future template
+changes need new names, not edits to already-published specs.
 
 Changing a ClusterClass can replace infrastructure. Rebase a cluster only after checking
 the rendered changes, endpoint reachability, maintenance window and replacement capacity.

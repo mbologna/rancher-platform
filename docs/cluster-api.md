@@ -8,7 +8,8 @@ and settings come from [`fleet/platform/`](../fleet/platform/) in the checkout, 
 providers it was tested with; `capi_providers_values_url` fetches another values file instead.
 
 [`fleet/`](../fleet/README.md) holds ClusterClasses, a shared AWS identity and three example
-clusters as Fleet bundles: `docker-rke2-example` (Docker containers on the host, for development),
+clusters as Fleet bundles: `docker-rke2-example` (Docker containers on the host, for development,
+and the preferred way to run RKE2 on Docker),
 `aws-rke2-example` (EC2 behind an internal NLB) and `aws-eks-example` (EKS with a managed node
 group). Turtles imports each cluster into Rancher once it is ready. Register them by adding
 `fleet_apps_capi_templates` to `fleet_apps`, with its `repo` pointed at your fork, or by applying
