@@ -274,12 +274,17 @@ kubeconfig_refresh: false
 kubeconfig_context_name: "{{ inventory_hostname }}"
 k8s_venv: /opt/rancher-platform/venv
 k8s_python: "{{ k8s_venv }}/bin/python"
+# Python packages of that virtualenv, which the kubernetes.core modules need.
+# renovate: datasource=pypi depName=kubernetes
+k8s_python_kubernetes_version: "37.0.3"
+# renovate: datasource=pypi depName=PyYAML
+k8s_python_pyyaml_version: "6.0.4"
 bin_dir: /usr/local/bin
 kubectl_bin: "{{ bin_dir }}/kubectl"
 rke2_bin: "{{ rke2_install_prefix }}/bin/rke2"
 rke2_snapshot_dir: /var/lib/rancher/rke2/server/db/snapshots
 helm_bin: "{{ bin_dir }}/helm"
-# Pinned because get.rke2.io falls back to /opt/rke2 when /usr/local is a mount point (Leap 16 btrfs).
+# Pinned because the RKE2 install script falls back to /opt/rke2 when /usr/local is a mount point (Leap 16 btrfs).
 rke2_install_prefix: /usr/local
 
 # Credentials live in secrets.yml (gitignored). Copy secrets.yml.example to get started.
