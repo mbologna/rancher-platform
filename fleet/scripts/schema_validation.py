@@ -13,6 +13,10 @@ from pathlib import Path
 
 from jsonschema import Draft7Validator
 
+# The core API schemas and the chart renders target this Kubernetes release.
+# renovate: datasource=github-releases depName=kubernetes/kubernetes
+KUBERNETES_VERSION = "v1.36.4"
+
 
 def fetch(url):
     try:
@@ -70,7 +74,7 @@ def validate_schemas(root, resources, platform):
                         kubernetes_schema(version["schema"]["openAPIV3Schema"])
                     )
     kubernetes = json.loads(fetch(
-        "https://raw.githubusercontent.com/kubernetes/kubernetes/v1.36.4/api/openapi-spec/swagger.json"
+        f"https://raw.githubusercontent.com/kubernetes/kubernetes/{KUBERNETES_VERSION}/api/openapi-spec/swagger.json"
     ))
     for definition in kubernetes["definitions"].values():
         for gvk in definition.get("x-kubernetes-group-version-kind", []):
@@ -120,26 +124,14 @@ def validate_schemas(root, resources, platform):
     if turtles is None:
         errors.append("platform/turtles-values.yaml: missing pinned chart-version")
         return errors
-    for chart, name in (("rancher-turtles", "turtles"), ("rancher-turtles-providers", "providers")):
-        url = f"https://raw.githubusercontent.com/rancher/turtles/{turtles[1]}/charts/{chart}/values.schema.json"
-        for error in Draft7Validator(json.loads(fetch(url))).iter_errors(drop_nulls(platform[name])):
-            errors.append(f"platform/{name}-values.yaml: {error.message}")
     if not errors:
         errors.extend(validate_charts(root, turtles[1]))
     return errors
 
 
-def drop_nulls(value):
-    """Helm deletes keys set to null before it validates the merged values."""
-    if isinstance(value, dict):
-        return {key: drop_nulls(item) for key, item in value.items() if item is not None}
-    if isinstance(value, list):
-        return [drop_nulls(item) for item in value]
-    return value
-
-
 def validate_charts(root, version):
-    """Render both platform charts without contacting Kubernetes."""
+    """Render both platform charts without contacting Kubernetes; Helm checks the values against
+    each chart's values.schema.json."""
     url = f"https://api.github.com/repos/rancher/turtles/tarball/{version}"
     try:
         with urllib.request.urlopen(url, timeout=60) as response:
@@ -164,7 +156,7 @@ def validate_charts(root, version):
         for chart, name in (("rancher-turtles", "turtles"), ("rancher-turtles-providers", "providers")):
             result = subprocess.run(
                 ["helm", "template", chart, str(charts / chart), "--namespace", "cattle-turtles-system",
-                 "--kube-version", "1.36.4", "-f", str(root / "platform" / f"{name}-values.yaml")],
+                 "--kube-version", KUBERNETES_VERSION, "-f", str(root / "platform" / f"{name}-values.yaml")],
                 capture_output=True, text=True, check=False,
             )
             if result.returncode:
