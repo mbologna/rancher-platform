@@ -40,7 +40,10 @@ Kubernetes API (6443) only to `allowed_admin_cidrs`; both reject `0.0.0.0/0`.
 CIDRs, which get 6443, 9345, 30000-32767 and 8472/udp. `existing_vpc_id` reuses a VPC instead of
 creating one, and `ami_name_filter` and `ami_owner` pick another image. To keep the state in S3,
 copy `terraform/backend.tf.example` to `terraform/backend.tf`, set the bucket and run
-`tofu init -migrate-state`.
+`tofu init -migrate-state`. The state holds the instance's details in plain text; to encrypt it
+and the plans with OpenTofu, copy `terraform/encryption.tofu.example` to
+`terraform/encryption.tofu` and set `TF_VAR_state_passphrase` before each `tofu` command. The
+next apply encrypts the existing state; the file explains how to finish the migration.
 
 ## A VM on a Mac
 
