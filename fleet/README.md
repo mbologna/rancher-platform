@@ -22,7 +22,7 @@ storage. Delete the examples you do not want from your fork first.
 
 | Component | Pinned in | Set by |
 |---|---|---|
-| Rancher, on management Kubernetes v1.34–v1.36 | [`turtles-values.yaml`](platform/turtles-values.yaml) `rancher-version` | Renovate |
+| Rancher, on management Kubernetes v1.34–v1.36 | [`turtles-values.yaml`](platform/turtles-values.yaml) `rancher-version` | `rancher_version` in [`config.yml`](../ansible/group_vars/all/config.yml), which Renovate updates |
 | Rancher Turtles | [`turtles-values.yaml`](platform/turtles-values.yaml) `chart-version` | the Rancher release |
 | CAPI core | [`turtles-values.yaml`](platform/turtles-values.yaml) | the Turtles catalogue |
 | Docker (CAPD), AWS (CAPA) and RKE2 (CAPRKE2) providers | [`providers-values.yaml`](platform/providers-values.yaml) | the Turtles catalogue |
@@ -30,11 +30,14 @@ storage. Delete the examples you do not want from your fork first.
 | AWS cloud controller manager v1.36.1 | [`aws-ccm-v136.yaml`](clusterclasses/aws-rke2/aws-ccm-v136.yaml) | Renovate, patches automerge |
 | Docker node image kindest/node:v1.36.4 | [`docker-rke2-example`](clusters/docker-rke2-example/cluster.yaml) | Renovate, patches |
 
-Rancher is the only provider stack version chosen by hand or by Renovate. Each Rancher release
-bundles one Turtles release (`turtlesVersion` in its `build.yaml`), and each Turtles release
-has a [provider catalogue][catalog] naming the core CAPI and provider releases it is tested
-with. [`scripts/sync-providers.py`](scripts/sync-providers.py) reads the Rancher pin, fetches
-both files at their release tags and rewrites the Turtles and provider pins to match:
+Rancher is the only provider stack version chosen by hand or by Renovate, and it has one pin:
+`rancher_version` in the Ansible [`config.yml`](../ansible/group_vars/all/config.yml), the
+release that `deploy` installs and that release tags record. Each Rancher release bundles one
+Turtles release (`turtlesVersion` in its `build.yaml`), and each Turtles release has a
+[provider catalogue][catalog] naming the core CAPI and provider releases it is tested with.
+[`scripts/sync-providers.py`](scripts/sync-providers.py) reads `rancher_version`, fetches both
+files at their release tags and rewrites the `rancher-version`, Turtles and provider pins in
+`platform/` to match:
 
 ```bash
 python3 scripts/sync-providers.py          # rewrite the pins
@@ -208,25 +211,26 @@ GitHub Actions runs three workflows:
   `check-platform.py`. It then registers `gitrepo.yaml`, pointed at the commit under test and
   narrowed to the Docker class and example, waits for CAPI to provision
   `docker-rke2-example`, for Turtles to import it into Rancher and for a pod to run on it,
-  and deletes the cluster. On pull requests it deploys the Rancher release that
-  `turtles-values.yaml` expects; the weekly run keeps the Ansible defaults' pin to catch drift.
+  and deletes the cluster. It deploys the Ansible `rancher_version`, which the `platform/` pins
+  follow.
   Its `platform` job is a required check: it runs when a pull request changes `platform/`,
   the Docker class or example, `gitrepo.yaml`, the check, the `capi_providers` role or the
   workflow, and is skipped
   (which passes) otherwise. CAPA gets dummy credentials, so it creates no AWS resources.
   The weekly run also fails if the pins drift from the Turtles catalogue.
 - **Fleet provider sync** runs `sync-providers.py` on every pull request from this repository
-  that changes `platform/*-values.yaml`, and commits any rewritten pins to the branch as
+  that changes `platform/*-values.yaml` or the Ansible `config.yml`, and commits any rewritten pins to the branch as
   `github-actions[bot]`. GitHub holds the workflow runs that this `GITHUB_TOKEN` push starts
   until someone with write access approves them; the job approves them, so the required checks
   run on the synced commit. The checks on the replaced commit fail on the drift. Pull requests
   from forks get no sync commit: run the script and push.
 
 Renovate uses the shared [mbologna/.github preset][preset], so routine updates automerge on
-green CI after its release-age gate. Renovate updates Rancher only: Turtles, core CAPI, CAPD,
-CAPA and CAPRKE2 are disabled there, and Provider sync adds them to the Rancher update PR. That
-PR automerges once the required `platform` check has deployed the stack and provisioned the
-Docker example; Rancher majors wait for a person. The preset lists `github-actions[bot]` in
+green CI after its release-age gate. Renovate updates `rancher_version` only: Turtles, core
+CAPI, CAPD, CAPA and CAPRKE2 are disabled there, and Provider sync adds them and the
+`rancher-version` pin to the Rancher update PR. A Rancher patch automerges once the required
+`e2e` and `platform` checks have deployed the stack and provisioned the Docker example; Rancher
+minors and majors wait for a person. The preset lists `github-actions[bot]` in
 `gitIgnoredAuthors`, so the sync commit does not stop Renovate from rebasing the branch.
 RKE2 and kind node image patches are grouped and automerge on the same `platform` check, which
 provisions the Docker example on them. AWS CCM patches automerge on the `validate` check, which

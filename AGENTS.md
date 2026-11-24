@@ -15,5 +15,6 @@ SemVer with the pinned Rancher as build metadata: `vX.Y.Z+up<rancher_version>`, 
   `rancher_version` in `ansible/group_vars/all/config.yml`.
 - A change of `rancher_version` releases on its own. A Rancher minor is a breaking change:
   commit it as `feat(deps)!:` (Renovate does), so it bumps the major.
-- Keep `rancher_version` and the `# rancher-version:` pin in
-  `fleet/platform/turtles-values.yaml` on the same release; the tag records the former.
+- `rancher_version` is the one Rancher pin. `fleet/scripts/sync-providers.py` derives the
+  `# rancher-version:`, Turtles and provider pins in `fleet/platform/` from it; run it after
+  changing `rancher_version` (Provider sync does on pull requests).

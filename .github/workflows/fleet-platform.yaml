@@ -5,9 +5,9 @@ name: Fleet platform check
 # Rancher, Turtles), which installs fleet/platform/providers-values.yaml from the same checkout,
 # runs fleet/scripts/check-platform.py, then provisions fleet/clusters/docker-rke2-example through
 # Fleet, CAPI and CAPD, waits for Turtles to import it into Rancher, runs a pod on it and deletes
-# it. On pull requests Rancher is the version fleet/platform/turtles-values.yaml expects; the
-# weekly run keeps the Ansible defaults' own pin so it still catches drift. CAPA gets dummy keys
-# so its controller starts; nothing calls AWS. The e2e workflow covers the rest of the Ansible.
+# it. Rancher is the Ansible deploy's rancher_version, which the fleet/platform/ pins follow.
+# CAPA gets dummy keys so its controller starts; nothing calls AWS. The e2e workflow covers the
+# rest of the Ansible.
 
 on:
   # No paths filter: the platform job is a required check, so it has to report on every pull
@@ -15,7 +15,7 @@ on:
   # changed.
   pull_request:
   schedule:
-    # Weekly, to catch drift between the pins and the Rancher release the Ansible defaults pin.
+    # Weekly, to catch a Turtles catalogue or release that changed under the pins.
     - cron: "17 5 * * 1"
   workflow_dispatch:
 
@@ -86,21 +86,11 @@ jobs:
           ./manage.sh install
 
       # The runner is the target host. Docker is preinstalled, so only CAPD's network is set up.
-      # Pull requests deploy the Rancher release this branch expects (Rancher brings its Turtles
-      # and core CAPI), so a provider stack update is tested as a whole.
+      # Rancher brings its Turtles and core CAPI, so a provider stack update is tested as a whole.
       - name: Write the inventory and secrets
         working-directory: ansible
-        env:
-          PIN_RANCHER: ${{ github.event_name == 'pull_request' }}
         run: |
           ip=$(hostname -I | awk '{print $1}')
-          rancher_version=""
-          if [ "${PIN_RANCHER}" = true ]; then
-            values="${GITHUB_WORKSPACE}/fleet/platform/turtles-values.yaml"
-            rancher_version=$(sed -n 's/^# rancher-version: v//p' "${values}")
-            test -n "${rancher_version}"
-            echo "Deploying Rancher ${rancher_version} from fleet/platform/turtles-values.yaml"
-          fi
           cat > inventory/hosts.yml <<INVENTORY
           servers:
             hosts:
@@ -113,9 +103,6 @@ jobs:
                 capd_enabled: true
                 capi_providers_enabled: true
           INVENTORY
-          if [ -n "${rancher_version}" ]; then
-            echo "      rancher_version: \"${rancher_version}\"" >> inventory/hosts.yml
-          fi
           password=$(openssl rand -hex 16)
           echo "::add-mask::${password}"
           cat > group_vars/all/secrets.yml <<SECRETS

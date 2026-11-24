@@ -1,8 +1,9 @@
 ---
 name: Fleet provider sync
 
-# Rancher pins the Turtles release it bundles, and that release's provider catalogue pins core
-# CAPI, CAPD, CAPA and CAPRKE2. When a pull request changes fleet/platform/*-values.yaml
+# rancher_version in ansible/group_vars/all/config.yml pins Rancher, Rancher pins the Turtles
+# release it bundles, and that release's provider catalogue pins core CAPI, CAPD, CAPA and
+# CAPRKE2. When a pull request changes rancher_version's file or fleet/platform/*-values.yaml
 # (Renovate's Rancher updates, or a hand edit), this runs fleet/scripts/sync-providers.py on its
 # branch and commits whatever the script rewrites as github-actions[bot]. The shared Renovate
 # preset lists that author in gitIgnoredAuthors, so Renovate still treats the branch as its
@@ -16,6 +17,7 @@ name: Fleet provider sync
 on:
   pull_request:
     paths:
+      - ansible/group_vars/all/config.yml
       - fleet/platform/*-values.yaml
 
 permissions:

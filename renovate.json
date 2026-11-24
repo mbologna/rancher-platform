@@ -21,7 +21,7 @@
         "/^fleet/clusters/.*\\/cluster\\.yaml$/"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s+(?:# (?:chart|rancher)-version:|version:) (?<currentValue>\\S+)"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s+(?:# chart-version:|version:) (?<currentValue>\\S+)"
       ],
       "description": "fleet/: version pins of the Cluster API templates"
     },
@@ -130,26 +130,9 @@
       ]
     },
     {
-      "description": "Rancher is the one pin of the provider stack. The Turtles release it bundles (its build.yaml turtlesVersion) and that release's provider catalogue (config-prime.yaml) fix Turtles, core CAPI, CAPD, CAPA and CAPRKE2, so a Rancher update PR carries all of them: the Provider sync workflow runs scripts/sync-providers.py on it and commits the rewritten pins. The required platform check deploys that Rancher with those providers, provisions the Docker RKE2 example through Fleet, CAPI and CAPRKE2, and waits for Turtles to import it into Rancher, so updates automerge on that check after the preset's age gates. CAPA is only installed and started: nothing exercises AWS.",
-      "matchDepNames": [
-        "rancher/rancher"
-      ],
-      "groupName": "Turtles provider stack",
-      "automerge": true,
-      "labels": [
-        "dependencies",
-        "automerge"
-      ],
-      "allowedVersions": "!/-(alpha|beta|rc|dev)/",
-      "matchFileNames": [
-        "fleet/**"
-      ]
-    },
-    {
       "description": "A Rancher minor is a major release of this repository (VERSIONING.md in mbologna/.github, pattern A: tags are vX.Y.Z+up<rancher>). It drops Kubernetes minors and changes the bundled Turtles and providers, so the update is committed as a breaking feat, which auto-release turns into a major.",
       "matchDepNames": [
-        "rancher",
-        "rancher/rancher"
+        "rancher"
       ],
       "matchUpdateTypes": [
         "minor"
@@ -157,27 +140,7 @@
       "commitMessagePrefix": "feat(deps)!:"
     },
     {
-      "description": "Rancher majors wait for a person. The rule above would otherwise automerge them like the preset's other majors.",
-      "matchDepNames": [
-        "rancher/rancher"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "automerge": false,
-      "labels": [
-        "dependencies",
-        "manual-review"
-      ],
-      "prBodyNotes": [
-        "**Why this waits for you:** a major release in the Rancher/Turtles provider stack can drop APIs or change the upgrade path. The platform check proves a fresh install, not an upgrade of running clusters; read the release notes and docs/migration.md before merging."
-      ],
-      "matchFileNames": [
-        "fleet/**"
-      ]
-    },
-    {
-      "description": "Turtles, core CAPI, CAPD, CAPA and CAPRKE2 follow the Rancher pin (see the rule above), never their own releases: a standalone bump installs providers the bundled Turtles was not tested with, and validate rejects pins that differ from its catalogue. The markers stay so the dashboard still lists the versions.",
+      "description": "rancher_version in ansible/group_vars/all/config.yml is the one Rancher pin. The Turtles release it bundles (its build.yaml turtlesVersion) and that release's provider catalogue (config-prime.yaml) fix Turtles, core CAPI, CAPD, CAPA and CAPRKE2: the Provider sync workflow runs fleet/scripts/sync-providers.py on a Rancher update PR and commits the fleet/platform/ pins it rewrites, and the platform check deploys and provisions with them. These never follow their own releases: a standalone bump installs providers the bundled Turtles was not tested with, and validate rejects pins that differ from its catalogue. The markers stay so the dashboard still lists the versions.",
       "matchDepNames": [
         "rancher/turtles",
         "kubernetes-sigs/cluster-api",

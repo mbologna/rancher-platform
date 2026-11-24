@@ -17,7 +17,8 @@ rke2_etcd_s3_endpoint: s3.amazonaws.com
 # renovate: datasource=github-releases depName=cert-manager/cert-manager
 cert_manager_version: "v1.21.3"
 
-# Rancher installs Turtles itself (2.15.2: Turtles v0.27.2, core CAPI v1.13.3).
+# Rancher installs Turtles itself (2.15.2: Turtles v0.27.2, core CAPI v1.13.3). The one Rancher pin:
+# fleet/scripts/sync-providers.py derives the fleet/platform/ pins from it.
 # renovate: datasource=helm depName=rancher registryUrl=https://releases.rancher.com/server-charts/stable
 rancher_version: "2.15.3"
 # Chart channel: stable, latest (adds release candidates such as 2.15.2-rc1) or alpha.

@@ -54,11 +54,15 @@ class SyncProvidersTests(unittest.TestCase):
     def setUp(self):
         workspace = tempfile.TemporaryDirectory()
         self.addCleanup(workspace.cleanup)
-        self.root = Path(workspace.name)
+        # The repository layout: fleet/ and the Ansible config it reads the Rancher pin from.
+        self.root = Path(workspace.name) / "fleet"
         shutil.copytree(ROOT / "platform", self.root / "platform")
+        self.config = self.root.parent / sync_providers.ANSIBLE_CONFIG
+        self.config.parent.mkdir(parents=True)
+        shutil.copy(ROOT.parent / sync_providers.ANSIBLE_CONFIG, self.config)
         turtles = (self.root / sync_providers.TURTLES_VALUES).read_text()
         providers = (self.root / sync_providers.PROVIDERS_VALUES).read_text()
-        self.rancher = pin(turtles, r"^# rancher-version: (\S+)$")
+        self.rancher = "v" + pin(self.config.read_text(), r'^rancher_version: "(\S+)"$')
         # A catalogue that matches the repository as it is.
         self.release = {
             "turtles": pin(turtles, r"^# chart-version: (\S+)$"),
@@ -113,7 +117,7 @@ class SyncProvidersTests(unittest.TestCase):
             self.assertEqual(len(old_lines), len(new_lines))
             for old, new in zip(old_lines, new_lines, strict=True):
                 if old != new:
-                    self.assertRegex(old, r"^(\s*version: |# chart-version: )v")
+                    self.assertRegex(old, r"^(\s*version: |# (chart|rancher)-version: )v")
         # Idempotent: a second run is a no-op.
         self.assertEqual(self.run_main("--check")[0], 0)
         self.assertIn("Already in sync", self.run_main()[1])
@@ -127,6 +131,29 @@ class SyncProvidersTests(unittest.TestCase):
         self.assertIn("CAPRKE2 bootstrap is", stderr)
         self.assertIn("expects v9.4.5", stderr)
         self.assertEqual(self.texts(), before)
+
+    def test_rancher_follows_the_ansible_pin(self):
+        before = self.texts()
+        self.rancher = "v9.0.1"
+        self.config.write_text(self.config.read_text().replace(
+            pin(self.config.read_text(), r"^(rancher_version: .*)$"), 'rancher_version: "9.0.1"'))
+        code, _, stderr = self.run_main("--check")
+        self.assertEqual(code, 1)
+        self.assertIn(f"Rancher is {pin(before[sync_providers.TURTLES_VALUES], r'^# rancher-version: (\S+)$')}", stderr)
+        self.assertIn(f"{sync_providers.ANSIBLE_CONFIG} expects v9.0.1", stderr)
+        self.assertEqual(self.texts(), before)
+        code, stdout, _ = self.run_main()
+        self.assertEqual(code, 0)
+        self.assertIn("- Rancher: ", stdout)
+        self.assertIn("# rancher-version: v9.0.1\n", self.texts()[sync_providers.TURTLES_VALUES])
+        self.assertEqual(self.requests[-2][:3], ("rancher/rancher", "build.yaml", "v9.0.1"))
+
+    def test_unpinned_ansible_rancher_is_rejected(self):
+        self.config.write_text(self.config.read_text().replace(
+            pin(self.config.read_text(), r"^(rancher_version: .*)$"), 'rancher_version: "{{ latest }}"'))
+        code, _, stderr = self.run_main()
+        self.assertEqual(code, 2)
+        self.assertIn("expected a stable", stderr)
 
     def test_turtles_follows_rancher(self):
         self.release["turtles"] = "v9.1.2"

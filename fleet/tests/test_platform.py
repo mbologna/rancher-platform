@@ -123,11 +123,20 @@ class PlatformTests(unittest.TestCase):
             and {"rancher/rke2", "kindest/node", ccm} <= set(rule.get("matchDepNames", []))
             for rule in rules
         ))
-        # The provider stack automerges on the platform check, but its majors wait for a person:
-        # a later major rule for the same packages must turn automerge back off.
-        stack = groups["Turtles provider stack"]
-        # Rancher is the only stack pin Renovate moves; the rest follow its Turtles catalogue.
-        self.assertEqual(stack["matchDepNames"], ["rancher/rancher"])
+        # rancher_version is the one Rancher pin Renovate moves; nothing tracks the fleet/ copy, which
+        # sync-providers.py derives. Its minors and majors wait for a person, and no later rule turns
+        # automerge back on.
+        self.assertNotIn("rancher/rancher", json.dumps(config))
+        manual = [
+            rule for rule in rules
+            if "rancher" in rule.get("matchDepNames", []) and rule.get("matchUpdateTypes") == ["minor", "major"]
+        ]
+        self.assertEqual(len(manual), 1)
+        self.assertFalse(manual[0]["automerge"])
+        self.assertIn("manual-review", manual[0]["labels"])
+        self.assertFalse(any(rule.get("automerge") for rule in rules[rules.index(manual[0]) + 1:]
+                             if "rancher" in rule.get("matchDepNames", [])))
+        # The rest of the stack follows Rancher's Turtles catalogue.
         followers = {
             "rancher/turtles", "kubernetes-sigs/cluster-api",
             "kubernetes-sigs/cluster-api-provider-aws", "rancher/cluster-api-provider-rke2",
@@ -142,21 +151,6 @@ class PlatformTests(unittest.TestCase):
             rule.get("enabled") is True and followers & set(rule.get("matchDepNames", []))
             for rule in rules[rules.index(disabled[0]) + 1:]
         ))
-        self.assertTrue(stack["automerge"])
-        self.assertNotIn("dependencyDashboardApproval", stack)
-        self.assertEqual(stack["labels"], ["dependencies", "automerge"])
-        self.assertIn("alpha|beta|rc|dev", stack["allowedVersions"])
-        later = rules[rules.index(stack) + 1:]
-        majors = [
-            rule for rule in later
-            if set(stack["matchDepNames"]) <= set(rule.get("matchDepNames", []))
-            and rule.get("matchUpdateTypes") == ["major"]
-        ]
-        self.assertEqual(len(majors), 1)
-        self.assertFalse(majors[0]["automerge"])
-        self.assertIn("manual-review", majors[0]["labels"])
-        self.assertFalse(any(rule.get("automerge") for rule in later[later.index(majors[0]) + 1:]
-                             if set(stack["matchDepNames"]) & set(rule.get("matchDepNames", []))))
         # Renovate ignores unstable versions by default; only check it is not switched off.
         self.assertIsNot(config.get("ignoreUnstable", True), False)
         self.assertIn("fleet/clusterclasses/aws-rke2/aws-ccm.yaml", config["ignorePaths"])
@@ -178,7 +172,7 @@ class PlatformTests(unittest.TestCase):
                     matches.extend(match.groupdict() for match in re.finditer(expression, path.read_text()))
         dependencies = {match["depName"] for match in matches}
         self.assertTrue({
-            "rancher/rancher", "rancher/turtles", "rancher/rke2",
+            "rancher/turtles", "rancher/rke2",
             "kubernetes-sigs/cluster-api", "kubernetes-sigs/cluster-api-provider-aws",
             "rancher/cluster-api-provider-rke2", "kindest/node",
             "registry.k8s.io/provider-aws/cloud-controller-manager",
