@@ -45,11 +45,12 @@ copy `terraform/backend.tf.example` to `terraform/backend.tf`, set the bucket an
 ## A VM on a Mac
 
 [Lima](https://lima-vm.io/) starts an openSUSE Leap 16 VM with 4 vCPUs, 12 GiB RAM and a 60 GiB
-disk, on an address the Mac can reach, and writes `ansible/inventory/lima.yml`:
+disk, on an address the Mac can reach, and writes `ansible/inventory/lima.yml`, which
+`manage.sh` uses while there is no `inventory/hosts.yml`:
 
 ```bash
 ./local/lima.sh up
-cd ansible && ./manage.sh deploy -i inventory/lima.yml
+cd ansible && ./manage.sh deploy
 ```
 
 `LIMA_INSTANCE` changes the VM name (default `rancher-platform`). `./local/lima.sh down` deletes

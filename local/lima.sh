@@ -24,7 +24,7 @@ servers:
       ansible_user: ${user}
       ansible_ssh_private_key_file: ~/.lima/_config/user
 INVENTORY
-        echo "VM ${NAME} is at ${ip}. Deploy with: cd ansible && ./manage.sh deploy -i inventory/lima.yml"
+        echo "VM ${NAME} is at ${ip}. Deploy with: cd ansible && ./manage.sh deploy"
         ;;
     down)
         limactl delete --force "${NAME}"
