@@ -1,5 +1,6 @@
 # Merge into the platform-owned rancher-turtles release, never Fleet.
-# renovate: datasource=github-releases depName=rancher/rancher
+# scripts/sync-providers.py sets rancher-version from rancher_version in
+# ansible/group_vars/all/config.yml, and the versions below from that Rancher release.
 # rancher-version: v2.15.3
 # renovate: datasource=github-releases depName=rancher/turtles
 # chart-version: v0.27.4

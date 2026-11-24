@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Pin Turtles and the CAPI providers to what the pinned Rancher release ships.
+"""Pin Rancher, Turtles and the CAPI providers in fleet/platform/ to the Ansible deploy's Rancher.
 
-Rancher's build.yaml names the Turtles chart it bundles, and that Turtles release's provider
-catalogue (internal/controllers/clusterctl/config-prime.yaml) names the core CAPI, CAPD, CAPA
-and CAPRKE2 releases it is tested with. This reads the Rancher pin in
-platform/turtles-values.yaml, fetches both files at their release tags from GitHub (with
-GITHUB_TOKEN when set) and rewrites the Turtles chart version and the provider versions to
-match. Running it again changes nothing. --check reports drift instead of writing.
+rancher_version in ansible/group_vars/all/config.yml is the one Rancher pin. Rancher's build.yaml
+names the Turtles chart it bundles, and that Turtles release's provider catalogue
+(internal/controllers/clusterctl/config-prime.yaml) names the core CAPI, CAPD, CAPA and CAPRKE2
+releases it is tested with. This fetches both files at their release tags from GitHub (with
+GITHUB_TOKEN when set) and rewrites the Rancher and Turtles chart pins and the provider versions
+to match. Running it again changes nothing. --check reports drift instead of writing.
 """
 
 import argparse
@@ -18,6 +18,8 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# Relative to the repository root, the parent of fleet/.
+ANSIBLE_CONFIG = "ansible/group_vars/all/config.yml"
 TURTLES_VALUES = "platform/turtles-values.yaml"
 PROVIDERS_VALUES = "platform/providers-values.yaml"
 CATALOGUE = "internal/controllers/clusterctl/config-prime.yaml"
@@ -56,10 +58,11 @@ def fetch(repository, path, ref, token=None):
 
 
 def rancher_version(text):
-    match = re.search(r"^# rancher-version: (\S+)$", text, re.MULTILINE)
-    if not match or not STABLE.fullmatch(match[1]):
-        raise SyncError(f"{TURTLES_VALUES}: expected a stable '# rancher-version: vX.Y.Z' pin")
-    return match[1]
+    """The Ansible deploy's Rancher pin, rancher_version: "X.Y.Z", as its release tag vX.Y.Z."""
+    match = re.search(r"^rancher_version: \"?(\d+\.\d+\.\d+)\"?$", text, re.MULTILINE)
+    if not match:
+        raise SyncError(f"{ANSIBLE_CONFIG}: expected a stable 'rancher_version: \"X.Y.Z\"' pin")
+    return f"v{match[1]}"
 
 
 def turtles_version(build_yaml):
@@ -98,8 +101,8 @@ def version_lines(lines):
         stack.append((indent, match[2]))
 
 
-def rewrite(relative_path, text, turtles, catalogue):
-    """Return the file's text with its pins set from the catalogue, and the changes made."""
+def rewrite(relative_path, text, rancher, turtles, catalogue):
+    """Return the file's text with its pins set from Rancher and the catalogue, and the changes made."""
     lines = text.splitlines(keepends=True)
     changes = []
     found = set()
@@ -116,33 +119,37 @@ def rewrite(relative_path, text, turtles, catalogue):
             raise SyncError(f"Turtles {turtles}'s catalogue pins {provider_type} {name} to {expected}, not a stable release")
         match = re.match(r"(\s*version:\s*)(\S+)(.*)", lines[index], re.DOTALL)
         if match[2] != expected:
-            changes.append((relative_path, label, match[2], expected))
+            changes.append((relative_path, label, match[2], expected, f"Turtles {turtles}"))
             lines[index] = f"{match[1]}{expected}{match[3]}"
     missing = {parents for path, parents in PINS if path == relative_path} - found
     if missing:
         raise SyncError(f"{relative_path}: no version key under {', '.join('.'.join(item) for item in sorted(missing))}")
     if relative_path == TURTLES_VALUES:
-        for index, line in enumerate(lines):
-            match = re.match(r"(# chart-version: )(\S+)(.*)", line, re.DOTALL)
-            if match:
-                if match[2] != turtles:
-                    changes.append((relative_path, "Turtles", match[2], turtles))
-                    lines[index] = f"{match[1]}{turtles}{match[3]}"
-                break
-        else:
-            raise SyncError(f"{relative_path}: missing '# chart-version:' pin")
+        for key, label, expected, source in (
+            ("rancher-version", "Rancher", rancher, ANSIBLE_CONFIG),
+            ("chart-version", "Turtles", turtles, f"Rancher {rancher}"),
+        ):
+            for index, line in enumerate(lines):
+                match = re.match(rf"(# {key}: )(\S+)(.*)", line, re.DOTALL)
+                if match:
+                    if match[2] != expected:
+                        changes.append((relative_path, label, match[2], expected, source))
+                        lines[index] = f"{match[1]}{expected}{match[3]}"
+                    break
+            else:
+                raise SyncError(f"{relative_path}: missing '# {key}:' pin")
     return "".join(lines), changes
 
 
 def sync(root, read=fetch, token=None):
     """Return (rancher, turtles, {path: new text}, changes) for the repository at root."""
     texts = {path: (root / path).read_text() for path in (TURTLES_VALUES, PROVIDERS_VALUES)}
-    rancher = rancher_version(texts[TURTLES_VALUES])
+    rancher = rancher_version((root.parent / ANSIBLE_CONFIG).read_text())
     turtles = turtles_version(read("rancher/rancher", "build.yaml", rancher, token))
     catalogue = catalogue_versions(read("rancher/turtles", CATALOGUE, turtles, token))
     updated, changes = {}, []
     for path, text in texts.items():
-        updated[path], file_changes = rewrite(path, text, turtles, catalogue)
+        updated[path], file_changes = rewrite(path, text, rancher, turtles, catalogue)
         changes.extend(file_changes)
     return rancher, turtles, updated, changes
 
@@ -157,10 +164,10 @@ def main(argv=None, root=ROOT, read=fetch):
     except SyncError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
-    print(f"Rancher {rancher} ships Turtles {turtles}; pins follow its provider catalogue.")
+    print(f"Rancher {rancher} ({ANSIBLE_CONFIG}) ships Turtles {turtles}; pins follow its provider catalogue.")
     if args.check:
-        for path, label, old, new in changes:
-            print(f"ERROR: {path}: {label} is {old}, Turtles {turtles} expects {new}", file=sys.stderr)
+        for path, label, old, new, source in changes:
+            print(f"ERROR: {path}: {label} is {old}, {source} expects {new}", file=sys.stderr)
         if changes:
             print("Run python3 scripts/sync-providers.py and commit the result.", file=sys.stderr)
             return 1
@@ -168,7 +175,7 @@ def main(argv=None, root=ROOT, read=fetch):
     for path, text in updated.items():
         if (root / path).read_text() != text:
             (root / path).write_text(text)
-    for path, label, old, new in changes:
+    for path, label, old, new, _ in changes:
         print(f"- {label}: {old} -> {new} ({path})")
     if not changes:
         print("Already in sync.")
