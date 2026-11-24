@@ -179,6 +179,8 @@ jobs:
         if: failure()
         run: |
           sudo /usr/local/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get pods -A || true
+          sudo /usr/local/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml \
+            -n cattle-system logs deployment/rancher --tail=200 || true
           sudo journalctl -u rke2-server --no-pager -n 100 || true
           sudo /usr/local/bin/kubectl --kubeconfig /root/.rancher-dev/kind-e2e.yaml get pods -A || true
           df -h /
