@@ -159,7 +159,7 @@
       ]
     },
     {
-      "description": "AWS CCM patches automerge (minors are disabled below). Its versions come from the kubernetes/cloud-provider-aws tags (customManagers), which carry dates; registry.k8s.io has none, so under the preset's timestamp-required age gates every release stayed pending for good (2026-11). A tag can precede the image's promotion, so the required validate check fails until registry.k8s.io serves the pinned image. Nothing in CI runs the CCM on AWS: a patch of the pinned line carries fixes only.",
+      "description": "AWS CCM patches automerge (minors are disabled below). Its versions come from the kubernetes/cloud-provider-aws tags (customManagers), which carry dates; registry.k8s.io has none, so under the preset's timestamp-required age gates every release stayed pending for good (2026-11). A tag can precede the image's promotion, so the required validate check fails until registry.k8s.io serves the pinned image. Nothing in CI runs the CCM on AWS: a patch of the pinned line carries fixes only. The topic keeps Renovate's commit header under commitlint's 100-column limit, which the full image name exceeds.",
       "matchDepNames": [
         "registry.k8s.io/provider-aws/cloud-controller-manager"
       ],
@@ -170,7 +170,8 @@
       ],
       "matchFileNames": [
         "fleet/**"
-      ]
+      ],
+      "commitMessageTopic": "AWS cloud controller manager"
     },
     {
       "description": "Patches get their own update, apart from minors. Without it Renovate offers only the highest non-major release, a minor that the rule below disables, so no patch of the pinned line was ever proposed once the next minor existed (CCM v1.36.2 behind v1.37.1, 2026-11).",
