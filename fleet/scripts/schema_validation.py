@@ -13,6 +13,10 @@ from pathlib import Path
 
 from jsonschema import Draft7Validator
 
+# The core API schemas and the chart renders target this Kubernetes release.
+# renovate: datasource=github-releases depName=kubernetes/kubernetes
+KUBERNETES_VERSION = "v1.36.4"
+
 
 def fetch(url):
     try:
@@ -70,7 +74,7 @@ def validate_schemas(root, resources, platform):
                         kubernetes_schema(version["schema"]["openAPIV3Schema"])
                     )
     kubernetes = json.loads(fetch(
-        "https://raw.githubusercontent.com/kubernetes/kubernetes/v1.36.4/api/openapi-spec/swagger.json"
+        f"https://raw.githubusercontent.com/kubernetes/kubernetes/{KUBERNETES_VERSION}/api/openapi-spec/swagger.json"
     ))
     for definition in kubernetes["definitions"].values():
         for gvk in definition.get("x-kubernetes-group-version-kind", []):
@@ -152,7 +156,7 @@ def validate_charts(root, version):
         for chart, name in (("rancher-turtles", "turtles"), ("rancher-turtles-providers", "providers")):
             result = subprocess.run(
                 ["helm", "template", chart, str(charts / chart), "--namespace", "cattle-turtles-system",
-                 "--kube-version", "1.36.4", "-f", str(root / "platform" / f"{name}-values.yaml")],
+                 "--kube-version", KUBERNETES_VERSION, "-f", str(root / "platform" / f"{name}-values.yaml")],
                 capture_output=True, text=True, check=False,
             )
             if result.returncode:

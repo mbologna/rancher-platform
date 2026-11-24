@@ -58,6 +58,16 @@
       "datasourceTemplate": "github-tags",
       "packageNameTemplate": "kubernetes/cloud-provider-aws",
       "description": "fleet/: version pins of the Cluster API templates"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^fleet/scripts/schema_validation\\.py$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nKUBERNETES_VERSION = \"(?<currentValue>[^\"]+)\""
+      ],
+      "description": "fleet/: the Kubernetes release the schema validation targets"
     }
   ],
   "packageRules": [
@@ -90,7 +100,8 @@
       "description": "Rancher 2.15.x requires Kubernetes < 1.37; raise this with the Rancher pin",
       "matchDepNames": [
         "rancher/rke2",
-        "kindest/node"
+        "kindest/node",
+        "kubernetes/kubernetes"
       ],
       "allowedVersions": "/^v1\\.(2[0-9]|3[0-6])\\./"
     },
