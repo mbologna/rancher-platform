@@ -1,7 +1,8 @@
 # Operations
 
-Run every `./manage.sh` command from `ansible/`. Extra arguments go to `ansible-playbook`, for
-example `-i inventory/lima.yml` or `-e '{"downstream_clusters": ["dev"]}'`. Upgrades,
+Run every `./manage.sh` command from `ansible/`. It uses `inventory/hosts.yml`, else the Lima
+VM's `inventory/lima.yml`, else the inventory OpenTofu wrote, and prints which. Extra arguments
+go to `ansible-playbook`, for example `-i other.yml` or `-e '{"downstream_clusters": ["dev"]}'`. Upgrades,
 snapshots, development builds and the image cache have their own pages, listed in the
 [README](../README.md#features).
 

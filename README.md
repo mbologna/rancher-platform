@@ -44,7 +44,7 @@ Run the commands from the repository root unless noted. All of them are safe to 
    # A new EC2 instance (OpenTofu or Terraform 1.6+): set region, SSH key, source CIDRs
    cp terraform/terraform.tfvars.example terraform/terraform.tfvars
    tofu -chdir=terraform init && tofu -chdir=terraform apply
-   # A Lima VM on a Mac: add -i inventory/lima.yml to the manage.sh commands below
+   # A Lima VM on a Mac: manage.sh then uses its inventory, inventory/lima.yml
    ./local/lima.sh up
    ```
 

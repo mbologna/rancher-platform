@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIMA_INVENTORY="${SCRIPT_DIR}/inventory/lima.yml"
 TERRAFORM_INVENTORY="${SCRIPT_DIR}/../terraform/generated/hosts.yml"
 cd "${SCRIPT_DIR}"
 
@@ -25,21 +26,28 @@ Extra options are passed to Ansible, e.g.:
   $0 deploy -i /path/to/inventory.yml
   $0 deploy -e '{"downstream_clusters": ["dev"]}'
 
-Inventory: inventory/hosts.yml if present, else ../terraform/generated/hosts.yml.
+Inventory: inventory/hosts.yml if present, else inventory/lima.yml (written by
+../local/lima.sh up), else ../terraform/generated/hosts.yml.
 USAGE
 }
 
-# Sets INV: the Terraform-generated inventory, unless the user passes -i or has a hand-written one.
+# Sets INV, unless the user passes -i or has a hand-written inventory/hosts.yml (ansible.cfg's
+# default): the Lima VM's inventory while it exists, else the Terraform-generated one.
 # (Written for bash 3.2, the macOS default: no mapfile, guarded empty-array expansion.)
 INV=()
 set_inventory() {
-    local arg
+    local arg inventory
     for arg in "$@"; do
         case "${arg}" in -i | --inventory | --inventory=* | -i*) return ;; esac
     done
-    if [[ ! -f inventory/hosts.yml && -f "${TERRAFORM_INVENTORY}" ]]; then
-        INV=(-i "${TERRAFORM_INVENTORY}")
-    fi
+    [[ -f inventory/hosts.yml ]] && return
+    for inventory in "${LIMA_INVENTORY}" "${TERRAFORM_INVENTORY}"; do
+        if [[ -f "${inventory}" ]]; then
+            echo "Inventory: ${inventory#"${SCRIPT_DIR}/"}" >&2
+            INV=(-i "${inventory}")
+            return
+        fi
+    done
 }
 
 # Prompts for the vault password when secrets.yml is encrypted and no password source is configured.
