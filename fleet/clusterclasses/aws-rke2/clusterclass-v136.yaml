@@ -2,7 +2,7 @@
 # Infrastructure: CAPA (AWS EC2 machines)
 # Control plane:  CAPRKE2 (RKE2ControlPlane)
 # Workers:        CAPRKE2 (RKE2ConfigTemplate)
-# CAPI core v1.13.3 and CAPRKE2 v0.25.2 use the v1beta2 contract. CAPA v2.11.1
+# CAPI core v1.13.3 and CAPRKE2 v0.25.3 use the v1beta2 contract. CAPA v2.11.1
 # uses the v1beta1 provider contract; its infrastructure resource CRDs serve v1beta2.
 # Note: v1beta2 ClusterClass uses templateRef (not ref) for all template references
 #
@@ -22,6 +22,10 @@
 #   cni                    - CNI plugin (default: calico)
 #   awsClusterIdentityName - AWSClusterStaticIdentity resource name (default: cluster-identity)
 #   apiServerAllowedCIDRs - Required trusted CIDR ranges for Kubernetes API access.
+#   nodeCIDRs              - Required private node subnet CIDRs (routed access to the internal NLB).
+#   vpcID                  - Optional existing VPC ID (default: empty, CAPA creates one)
+#   subnetID               - Existing subnet ID; required when vpcID is set
+#   publicIP               - Assign public IPs to the instances (default: false)
 #
 # Prerequisites (one-time per AWS account):
 #   clusterawsadm bootstrap iam create-cloudformation-stack

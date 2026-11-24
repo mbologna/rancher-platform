@@ -182,7 +182,7 @@ gitrepo.yaml      Fleet GitRepo for the three bundle directories
 
 ## Development
 
-Requirements: Python 3.12 or newer, [yq][yq] v4.44.3 or newer and Helm v4 (CI renders the charts with the version in `.github/workflows/validate.yaml`).
+Requirements: Python 3.12 or newer, [yq][yq] v4.44.3 or newer and Helm v4 (CI renders the charts with the version in `.github/workflows/fleet-validate.yaml`).
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
