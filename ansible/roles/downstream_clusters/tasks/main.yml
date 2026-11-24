@@ -27,10 +27,10 @@
       default) or rke2, a version looks like v1.36.4 for kind and v1.36.5+rke2r1 for rke2, and nodes is at
       least 1; got {{ downstream_clusters }}.
 
+# Also without downstream clusters: the prune below removes the nodes of clusters dropped from the list.
 - name: Check that Docker is running
   ansible.builtin.command: docker version
   changed_when: false
-  when: downstream_clusters | length > 0
   register: downstream_clusters_docker
   failed_when: false
 
@@ -126,24 +126,38 @@
        | reject('in', downstream_clusters_kind_names | map('regex_replace', '^', 'rp-') | list) | list }}
   changed_when: true
 
-- name: Delete the node containers and volumes of unlisted rke2 clusters
-  ansible.builtin.shell: |
-    set -euo pipefail
-    command -v docker >/dev/null || exit 0
-    keep=" {{ downstream_clusters_rke2_specs | map(attribute='name') | join(' ') }} "
-    label={{ downstream_clusters_node_label }}
-    format='{{ "{{" }}.Names{{ "}}" }} {{ "{{" }}.Label "{{ downstream_clusters_node_label }}"{{ "}}" }}'
-    # Containers first: Docker keeps a volume while a container uses it.
-    docker container ls -a --filter "label=$label" --format "$format" | while read -r name cluster; do
-      case "$keep" in *" $cluster "*) ;; *) docker container rm -fv "$name" >/dev/null; echo "removed $name" ;; esac
-    done
-    docker volume ls --filter "label=$label" --format "${format/.Names/.Name}" | while read -r name cluster; do
-      case "$keep" in *" $cluster "*) ;; *) docker volume rm "$name" >/dev/null; echo "removed $name" ;; esac
-    done
-  args:
-    executable: /bin/bash
-  register: downstream_clusters_node_prune
-  changed_when: downstream_clusters_node_prune.stdout | length > 0
+- name: List the node containers and volumes of rke2 clusters
+  community.docker.docker_host_info:
+    containers: true
+    containers_all: true
+    containers_filters:
+      label: "{{ downstream_clusters_node_label }}"
+    volumes: true
+    volumes_filters:
+      label: "{{ downstream_clusters_node_label }}"
+    verbose_output: true
+  register: downstream_clusters_node_objects
+  when: downstream_clusters_docker.rc == 0
+
+# Containers first: Docker keeps a volume while a container uses it.
+- name: Delete the node containers of unlisted rke2 clusters
+  community.docker.docker_container:
+    name: "{{ item.Names | first | regex_replace('^/', '') }}"
+    state: absent
+    keep_volumes: false
+  loop: "{{ downstream_clusters_node_objects.containers | default([]) }}"
+  loop_control:
+    label: "{{ item.Names | first }}"
+  when: item.Labels[downstream_clusters_node_label] not in downstream_clusters_rke2_names
+
+- name: Delete the node volumes of unlisted rke2 clusters
+  community.docker.docker_volume:
+    name: "{{ item.Name }}"
+    state: absent
+  loop: "{{ downstream_clusters_node_objects.volumes | default([]) }}"
+  loop_control:
+    label: "{{ item.Name }}"
+  when: item.Labels[downstream_clusters_node_label] not in downstream_clusters_rke2_names
 
 - name: Remove the kubeconfigs and import manifests of deleted clusters
   ansible.builtin.file:

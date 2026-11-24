@@ -48,7 +48,7 @@ Run the commands from the repository root unless noted. All of them are safe to 
    ./local/lima.sh up
    ```
 
-2. Install Rancher. You need ansible-core 2.18 or later (the playbook checks). Set `rancher_bootstrap_password`
+2. Install Rancher. You need ansible-core 2.17 or later (the playbook checks). Set `rancher_bootstrap_password`
    (12 or more characters) in `secrets.yml`, then deploy from `ansible/`, where every
    `./manage.sh` command runs:
 

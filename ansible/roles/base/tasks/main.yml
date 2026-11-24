@@ -60,32 +60,34 @@
     enabled: true
   when: install_docker | bool
 
-# CAPD attaches load balancer and node containers to the "kind" network. Docker 28+ drops
-# routed traffic to container IPs, which blocks the CAPI controllers in the pod network;
-# nat-unprotected lifts that. An unused network without the option is recreated.
-- name: Create the Docker network for CAPD
-  ansible.builtin.shell: |
-    {% raw %}
-    opt=com.docker.network.bridge.gateway_mode_ipv4
-    if mode=$(docker network inspect kind -f "{{index .Options \"$opt\"}}" 2>/dev/null); then
-      [ "$mode" = nat-unprotected ] && exit 0
-      [ -n "$(docker network inspect kind -f '{{range .Containers}}x{{end}}')" ] && exit 0
-      docker network rm kind >/dev/null
-    fi
-    docker network create -o "$opt=nat-unprotected" kind >/dev/null
-    echo changed
-    {% endraw %}
-  args:
-    executable: /bin/bash
-  register: base_kind_network
-  changed_when: "'changed' in base_kind_network.stdout"
-  when: capd_enabled | bool
-
 - name: Create a Python virtualenv for the Kubernetes modules
   ansible.builtin.pip:
     name: ["kubernetes=={{ k8s_python_kubernetes_version }}", "PyYAML=={{ k8s_python_pyyaml_version }}"]
     virtualenv: "{{ k8s_venv }}"
     virtualenv_command: "{{ ansible_facts.python.executable }} -m venv"
+
+# CAPD attaches load balancer and node containers to the "kind" network. Docker 28+ drops
+# routed traffic to container IPs, which blocks the CAPI controllers in the pod network;
+# nat-unprotected lifts that. An unused network without the option is recreated; one with
+# containers is left alone.
+- name: Read the Docker network for CAPD
+  community.docker.docker_network_info:
+    name: kind
+  vars:
+    ansible_python_interpreter: "{{ k8s_python }}"
+  register: base_kind_network
+  when: capd_enabled | bool
+
+- name: Create the Docker network for CAPD
+  community.docker.docker_network:
+    name: kind
+    driver_options:
+      com.docker.network.bridge.gateway_mode_ipv4: nat-unprotected
+  vars:
+    ansible_python_interpreter: "{{ k8s_python }}"
+  when:
+    - capd_enabled | bool
+    - not base_kind_network.exists or base_kind_network.network.Containers | length == 0
 
 - name: Create the dev directory
   ansible.builtin.file:

@@ -5,14 +5,14 @@
   become: true
   tags: [always]
   tasks:
-    # The oldest ansible-core every pinned collection supports (requirements.yml): community.general
-    # 13 declares requires_ansible >=2.18.0. Raise it when a collection update raises theirs.
-    - name: Require ansible-core 2.18 or later on the controller
+    # The oldest ansible-core every pinned collection supports (requirements.yml): community.docker
+    # 5 declares requires_ansible >=2.17.0. Raise it when a collection update raises theirs.
+    - name: Require ansible-core 2.17 or later on the controller
       ansible.builtin.assert:
-        that: ansible_version.full is version('2.18.0', '>=')
+        that: ansible_version.full is version('2.17.0', '>=')
         fail_msg: >-
-          ansible-core {{ ansible_version.full }} is too old: community.general 13 needs 2.18 or
-          later (pip install 'ansible-core>=2.18').
+          ansible-core {{ ansible_version.full }} is too old: community.docker 5 needs 2.17 or
+          later (pip install 'ansible-core>=2.17').
         quiet: true
       run_once: true
 
@@ -89,6 +89,8 @@
     - role: helm
       tags: [helm]
     - role: registry_cache
+      vars:
+        ansible_python_interpreter: "{{ k8s_python }}"
       tags: [registry_cache]
     - role: rke2
       tags: [rke2]

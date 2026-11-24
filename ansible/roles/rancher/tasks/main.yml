@@ -133,9 +133,13 @@
   changed_when: false
 
 - name: Re-issue the ingress certificate from the configured source
-  ansible.builtin.command: "{{ kubectl_bin }} -n cattle-system delete secret tls-rancher-ingress"
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Secret
+    namespace: cattle-system
+    name: tls-rancher-ingress
+    state: absent
   when: rancher_tls_issuer_cn[rancher_tls_source] not in rancher_cert_issuer.stdout
-  changed_when: true
 
 - name: Wait for the certificate from the configured source
   ansible.builtin.shell: >-
