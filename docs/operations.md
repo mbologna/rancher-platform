@@ -13,7 +13,7 @@ snapshots, development builds and the image cache have their own pages, listed i
 | `./manage.sh kubeconfig` | Write a new kubeconfig and revoke the old one. |
 | `./manage.sh snapshot [name]` | Save an etcd snapshot (default name `manual`). |
 | `./manage.sh snapshots` | List etcd snapshots. |
-| `./manage.sh restore <name>` | Restore RKE2 and Rancher from a snapshot. |
+| `./manage.sh restore <name>` | Restore RKE2 and Rancher from a snapshot, on the host or in the S3 bucket. |
 | `./manage.sh uninstall-rancher` | Remove Rancher, Rancher AI and cert-manager. |
 | `./manage.sh reset` | **Delete all cluster and Docker data** on the host, including RKE2, K3s, kind and k3d installed by anything, then deploy. |
 

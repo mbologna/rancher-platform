@@ -1,31 +1,58 @@
 ---
-# Restores RKE2 (and with it Rancher) from a local etcd snapshot. kind clusters keep running and
-# reconnect; their own workloads are not part of the snapshot.
-- name: Find snapshot {{ etcd_snapshot_name }}
+# Restores RKE2 (and with it Rancher) from an etcd snapshot: a local one when it exists, else one in
+# the S3 bucket (rke2_etcd_s3_bucket). kind clusters keep running and reconnect; their own workloads
+# are not part of the snapshot.
+- name: Find on the host snapshot {{ etcd_snapshot_name }}
   ansible.builtin.find:
     paths: "{{ rke2_snapshot_dir }}"
     patterns: ["{{ etcd_snapshot_name }}", "{{ etcd_snapshot_name }}-*"]
   register: etcd_restore_found
 
+# Lists the local snapshots and the bucket's, reading S3 itself, so it also works on a rebuilt host.
+- name: List the snapshots in S3
+  ansible.builtin.command: "{{ rke2_bin }} etcd-snapshot list"
+  register: etcd_restore_s3_list
+  changed_when: false
+  when:
+    - etcd_restore_found.files | length == 0
+    - rke2_etcd_s3_bucket | length > 0
+
+# Columns: Name Location Size Created, with Location s3://<bucket>/... for the bucket's copies.
+- name: Note the matching snapshots in S3
+  ansible.builtin.set_fact:
+    etcd_restore_s3_matches: >-
+      {% set matches = [] %}{% for line in etcd_restore_s3_list.stdout_lines | default([]) %}{%
+      set field = line.split() %}{% if field | length >= 4 and field[1].startswith('s3://')
+      and (field[0] == etcd_snapshot_name or field[0].startswith(etcd_snapshot_name ~ '-')) %}{%
+      set _ = matches.append({'name': field[0], 'created': field[3]}) %}{% endif %}{% endfor %}{{ matches }}
+
 - name: Check that the snapshot exists
   ansible.builtin.assert:
-    that: etcd_restore_found.files | length > 0
+    that: etcd_restore_found.files | length > 0 or etcd_restore_s3_matches | length > 0
     fail_msg: >-
-      No snapshot named {{ etcd_snapshot_name }} in {{ rke2_snapshot_dir }}; ./manage.sh snapshots lists them.
+      No snapshot named {{ etcd_snapshot_name }} in {{ rke2_snapshot_dir }}{{
+      ' or in S3 bucket ' ~ rke2_etcd_s3_bucket if rke2_etcd_s3_bucket | length > 0 else '' }};
+      ./manage.sh snapshots lists them.
     quiet: true
 
+# RKE2 fetches a snapshot from S3 when its config has the bucket, unless told not to: a local
+# restore passes --etcd-s3=false and the file's path, an S3 one only the snapshot's name.
 - name: Pick the newest match
   ansible.builtin.set_fact:
-    etcd_restore_path: "{{ (etcd_restore_found.files | sort(attribute='mtime') | last).path }}"
+    etcd_restore_args: >-
+      {{ '--etcd-s3=false --cluster-reset-restore-path='
+         ~ (etcd_restore_found.files | sort(attribute='mtime') | last).path
+         if etcd_restore_found.files | length > 0
+         else '--cluster-reset-restore-path='
+         ~ (etcd_restore_s3_matches | sort(attribute='created') | last).name }}
 
 - name: Stop RKE2
   ansible.builtin.systemd_service:
     name: rke2-server
     state: stopped
 
-- name: Restore etcd from {{ etcd_restore_path }}
-  ansible.builtin.command: >-
-    {{ rke2_bin }} server --cluster-reset --cluster-reset-restore-path={{ etcd_restore_path }}
+- name: Restore etcd with {{ etcd_restore_args }}
+  ansible.builtin.command: "{{ rke2_bin }} server --cluster-reset {{ etcd_restore_args }}"
   changed_when: true
 
 - name: Start RKE2

@@ -1,5 +1,8 @@
 # Managed by Ansible (rancher-platform)
 write-kubeconfig-mode: "0600"
+{% if rke2_token is defined %}
+token: {{ rke2_token | to_json }}
+{% endif %}
 ingress-controller: traefik
 tls-san:
   - {{ rancher_hostname }}
@@ -11,6 +14,9 @@ etcd-s3: true
 etcd-s3-bucket: {{ rke2_etcd_s3_bucket }}
 etcd-s3-region: {{ rke2_etcd_s3_region }}
 etcd-s3-endpoint: {{ rke2_etcd_s3_endpoint }}
+{% if rke2_etcd_s3_insecure | bool %}
+etcd-s3-insecure: true
+{% endif %}
 {% if rke2_etcd_s3_folder | length > 0 %}
 etcd-s3-folder: {{ rke2_etcd_s3_folder }}
 {% endif %}
