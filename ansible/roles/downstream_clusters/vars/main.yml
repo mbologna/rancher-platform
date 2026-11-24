@@ -13,6 +13,7 @@ downstream_clusters_names: "{{ downstream_clusters_specs | map(attribute='name',
 downstream_clusters_kind_names: >-
   {{ downstream_clusters_specs | selectattr('type', 'eq', 'kind') | map(attribute='name') | list }}
 downstream_clusters_rke2_specs: "{{ downstream_clusters_specs | selectattr('type', 'eq', 'rke2') | list }}"
+downstream_clusters_rke2_names: "{{ downstream_clusters_rke2_specs | map(attribute='name') | list }}"
 downstream_clusters_version_patterns:
   kind: ^v1\.[0-9]+\.[0-9]+$
   rke2: ^v1\.[0-9]+\.[0-9]+\+rke2r[0-9]+$
@@ -55,5 +56,5 @@ downstream_clusters_nodes: >-
   nodes.append({'name': 'rp-' ~ downstream_clusters_name ~ '-' ~ i,
                 'roles': '--etcd --controlplane --worker' if i == 1 else '--worker'}) %}{% endfor %}{{ nodes }}
 downstream_clusters_surplus: >-
-  {{ downstream_clusters_node_list.stdout_lines | reject('in', downstream_clusters_nodes | map(attribute='name'))
-     | list }}
+  {{ downstream_clusters_node_list.containers | map(attribute='Names') | map('first') | map('regex_replace', '^/', '')
+     | reject('in', downstream_clusters_nodes | map(attribute='name')) | list }}

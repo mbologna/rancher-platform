@@ -14,45 +14,39 @@
     quiet: true
   when: registry_cache_enabled | bool
 
-# The label holds a hash of the settings, so a changed setting recreates the container.
 - name: Run a registry cache for each upstream
-  ansible.builtin.shell: |
-    set -euo pipefail
-    name=rp-registry-{{ item.registry | replace('.', '-') }}
-    label=rancher-platform.registry-cache={{ registry_cache_hash }}
-    [ -n "$(docker ps -aq --filter "name=^${name}$" --filter "label=$label")" ] && exit 0
-    docker rm -f "$name" >/dev/null 2>&1 || true
-    docker run -d --name "$name" --restart always --label "$label" \
-      -p {{ registry_cache_address }}:{{ item.port }}:5000 -v "$name:/var/lib/registry" \
-      -e REGISTRY_PROXY_REMOTEURL={{ item.url | quote }} \
-      ${REGISTRY_PROXY_USERNAME:+-e REGISTRY_PROXY_USERNAME -e REGISTRY_PROXY_PASSWORD} \
-      registry:{{ registry_cache_image_version }} >/dev/null
-    echo changed
-  args:
-    executable: /bin/bash
-  environment: "{{ registry_cache_credentials if item.registry == 'docker.io' else {} }}"
-  vars:
-    registry_cache_hash: >-
-      {{ (item | to_json ~ registry_cache_address ~ registry_cache_image_version
-          ~ (registry_cache_credentials | to_json if item.registry == 'docker.io' else ''))
-         | hash('sha256') | truncate(16, end='') }}
+  community.docker.docker_container:
+    name: rp-registry-{{ item.registry | replace('.', '-') }}
+    image: registry:{{ registry_cache_image_version }}
+    restart_policy: always
+    labels:
+      rancher-platform.registry-cache: "true"
+    published_ports: ["{{ registry_cache_address }}:{{ item.port }}:5000"]
+    volumes: ["rp-registry-{{ item.registry | replace('.', '-') }}:/var/lib/registry"]
+    env: >-
+      {{ {'REGISTRY_PROXY_REMOTEURL': item.url}
+         | combine(registry_cache_credentials if item.registry == 'docker.io' else {}) }}
+    comparisons:
+      env: strict
   loop: "{{ registry_cache_upstreams if registry_cache_enabled | bool else [] }}"
   loop_control:
     label: "{{ item.registry }} on port {{ item.port }}"
-  register: registry_cache_run
-  changed_when: "'changed' in registry_cache_run.stdout"
   no_log: "{{ item.registry == 'docker.io' and registry_cache_credentials | length > 0 }}"
+
+- name: List the registry caches
+  community.docker.docker_host_info:
+    containers: true
+    containers_all: true
+    containers_filters:
+      label: rancher-platform.registry-cache
+  register: registry_cache_containers
+  when: registry_cache_docker.rc == 0
 
 # The cached images stay in their volumes; ./manage.sh reset deletes them.
 - name: Remove registry caches that are no longer configured
-  ansible.builtin.shell: |
-    set -euo pipefail
-    keep=" {{ registry_cache_names | join(' ') }} "
-    for name in $(docker ps -a --filter label=rancher-platform.registry-cache --format '{{ "{{" }}.Names{{ "}}" }}'); do
-      case "$keep" in *" $name "*) ;; *) docker rm -f "$name" >/dev/null; echo "removed $name" ;; esac
-    done
-  args:
-    executable: /bin/bash
-  register: registry_cache_prune
-  changed_when: registry_cache_prune.stdout | length > 0
-  when: registry_cache_docker.rc == 0
+  community.docker.docker_container:
+    name: "{{ item }}"
+    state: absent
+  loop: >-
+    {{ registry_cache_containers.containers | default([]) | map(attribute='Names') | map('first')
+       | map('regex_replace', '^/', '') | reject('in', registry_cache_names) | list }}

@@ -4,52 +4,82 @@
 - name: Read the registration token of {{ downstream_clusters_name }}
   ansible.builtin.include_tasks: token.yml
 
+- name: Create the volumes of the nodes of {{ downstream_clusters_name }}
+  community.docker.docker_volume:
+    name: "{{ item[0].name }}-{{ item[1] }}"
+    labels: "{{ {downstream_clusters_node_label: downstream_clusters_name} }}"
+  loop: "{{ downstream_clusters_nodes | product(['rancher', 'kubelet']) | list }}"
+  loop_control:
+    label: "{{ item[0].name }}-{{ item[1] }}"
+
+# Only a missing container is created: recreating one would lose the agent that Rancher installed in it.
 - name: Run the nodes of {{ downstream_clusters_name }}
-  ansible.builtin.shell: |
-    set -euo pipefail
-    name={{ item.name }}
-    if [ -z "$(docker container ls -aq --filter "name=^${name}$")" ]; then
-      for dir in rancher kubelet; do
-        docker volume create --label {{ downstream_clusters_node_label }}={{ downstream_clusters_name }} \
-          "$name-$dir" >/dev/null
-      done
-      docker run -d --name "$name" --hostname "$name" --privileged --network kind --restart unless-stopped \
-        --label {{ downstream_clusters_node_label }}={{ downstream_clusters_name }} \
-        --add-host {{ rancher_hostname }}:{{ ansible_facts.default_ipv4.address }} \
-        -v /lib/modules:/lib/modules:ro -v "$name-rancher:/var/lib/rancher" -v "$name-kubelet:/var/lib/kubelet" \
-        -v {{ downstream_clusters_node_env }}:/etc/default/rancher-system-agent:ro \
-        -v {{ downstream_clusters_node_env }}:/etc/default/rke2-server:ro \
-        -v {{ downstream_clusters_node_env }}:/etc/default/rke2-agent:ro \
-        {{ downstream_clusters_node_image }} \
-        bash -c 'mount --make-rshared / && exec /usr/lib/systemd/systemd --unit=multi-user.target' >/dev/null
-      echo changed
-    elif [ "$(docker container inspect -f '{{ "{{" }}.State.Running{{ "}}" }}' "$name")" != true ]; then
-      docker start "$name" >/dev/null
-      echo changed
-    fi
-    docker exec "$name" systemctl is-system-running --wait >/dev/null || true
-    docker exec "$name" test -e /etc/systemd/system/rancher-system-agent.service && exit 0
-    docker exec -d "$name" bash -c "$NODE_COMMAND {{ item.roles }} > /var/log/rp-install.log 2>&1"
-    echo changed
-  args:
-    executable: /bin/bash
-  environment:
-    # insecureNodeCommand skips curl's certificate check; the agent still checks the Rancher CA checksum.
-    NODE_COMMAND: >-
-      {{ downstream_clusters_token_status.insecureNodeCommand | replace('{token}', downstream_clusters_token_value)
-         | replace('| sudo ', '| ') }}
+  community.docker.docker_container:
+    name: "{{ item.name }}"
+    hostname: "{{ item.name }}"
+    image: "{{ downstream_clusters_node_image }}"
+    privileged: true
+    networks: [{name: kind}]
+    restart_policy: unless-stopped
+    labels: "{{ {downstream_clusters_node_label: downstream_clusters_name} }}"
+    etc_hosts: "{{ {rancher_hostname: ansible_facts.default_ipv4.address} }}"
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      - "{{ item.name }}-rancher:/var/lib/rancher"
+      - "{{ item.name }}-kubelet:/var/lib/kubelet"
+      - "{{ downstream_clusters_node_env }}:/etc/default/rancher-system-agent:ro"
+      - "{{ downstream_clusters_node_env }}:/etc/default/rke2-server:ro"
+      - "{{ downstream_clusters_node_env }}:/etc/default/rke2-agent:ro"
+    command: [bash, -c, mount --make-rshared / && exec /usr/lib/systemd/systemd --unit=multi-user.target]
+    comparisons:
+      "*": ignore
+    state: started
   loop: "{{ downstream_clusters_nodes }}"
   loop_control:
     label: "{{ item.name }}"
-  register: downstream_clusters_node_run
-  changed_when: "'changed' in downstream_clusters_node_run.stdout"
+
+- name: Wait for systemd in the nodes of {{ downstream_clusters_name }}
+  community.docker.docker_container_exec:
+    container: "{{ item.name }}"
+    argv: [systemctl, is-system-running, --wait]
+  loop: "{{ downstream_clusters_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: false
+  failed_when: false
+
+- name: Look for the Rancher agent in the nodes of {{ downstream_clusters_name }}
+  community.docker.docker_container_exec:
+    container: "{{ item.name }}"
+    argv: [test, -e, /etc/systemd/system/rancher-system-agent.service]
+  loop: "{{ downstream_clusters_nodes }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: downstream_clusters_node_agent
+  changed_when: false
+  failed_when: false
+
+- name: Register with Rancher the nodes of {{ downstream_clusters_name }}
+  community.docker.docker_container_exec:
+    container: "{{ item.item.name }}"
+    argv: [bash, -c, "{{ downstream_clusters_node_command }} {{ item.item.roles }} > /var/log/rp-install.log 2>&1"]
+    detach: true
+  vars:
+    # insecureNodeCommand skips curl's certificate check; the agent still checks the Rancher CA checksum.
+    downstream_clusters_node_command: >-
+      {{ downstream_clusters_token_status.insecureNodeCommand | replace('{token}', downstream_clusters_token_value)
+         | replace('| sudo ', '| ') }}
+  loop: "{{ downstream_clusters_node_agent.results | rejectattr('rc', 'eq', 0) | list }}"
+  loop_control:
+    label: "{{ item.item.name }}"
 
 - name: List the node containers of {{ downstream_clusters_name }}
-  ansible.builtin.command: >-
-    docker container ls -a --filter label={{ downstream_clusters_node_label }}={{ downstream_clusters_name }}
-    --format '{{ "{{" }}.Names{{ "}}" }}'
+  community.docker.docker_host_info:
+    containers: true
+    containers_all: true
+    containers_filters:
+      label: "{{ downstream_clusters_node_label }}={{ downstream_clusters_name }}"
   register: downstream_clusters_node_list
-  changed_when: false
 
 # Deleting the Machine makes Rancher drain the node and remove it from the cluster.
 - name: Find the Machines of {{ downstream_clusters_name }}
@@ -78,14 +108,17 @@
     label: "{{ item.status.nodeRef.name }}"
 
 - name: Delete the surplus node containers of {{ downstream_clusters_name }}
-  ansible.builtin.shell: |
-    set -euo pipefail
-    docker container rm -fv {{ item }} >/dev/null
-    docker volume rm {{ item }}-rancher {{ item }}-kubelet >/dev/null
-  args:
-    executable: /bin/bash
+  community.docker.docker_container:
+    name: "{{ item }}"
+    state: absent
+    keep_volumes: false
   loop: "{{ downstream_clusters_surplus }}"
-  changed_when: true
+
+- name: Delete the volumes of the surplus nodes of {{ downstream_clusters_name }}
+  community.docker.docker_volume:
+    name: "{{ item[0] }}-{{ item[1] }}"
+    state: absent
+  loop: "{{ downstream_clusters_surplus | product(['rancher', 'kubelet']) | list }}"
 
 # Rancher upgrades a cluster after its spec changes and reports ready throughout, so wait for the nodes.
 - name: Wait for every node to run the requested version in {{ downstream_clusters_name }}
