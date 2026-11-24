@@ -183,7 +183,7 @@ class PlatformTests(unittest.TestCase):
             "kubernetes-sigs/cluster-api", "kubernetes-sigs/cluster-api-provider-aws",
             "rancher/cluster-api-provider-rke2", "kindest/node",
             "registry.k8s.io/provider-aws/cloud-controller-manager",
-            "github.com/mikefarah/yq/v4",
+            "mikefarah/yq",
         }.issubset(dependencies))
         rke2 = next(match for match in matches if match["depName"] == "rancher/rke2")
         self.assertIn("build", rke2["versioning"])

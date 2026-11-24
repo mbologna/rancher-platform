@@ -42,9 +42,8 @@
         "/^\\.github/workflows/fleet-validate\\.yaml$/"
       ],
       "matchStrings": [
-        "go install (?<depName>github\\.com/mikefarah/yq/v4)@(?<currentValue>v\\S+)"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+YQ_VERSION: (?<currentValue>v\\S+)"
       ],
-      "datasourceTemplate": "go",
       "description": "fleet/: version pins of the Cluster API templates"
     },
     {
