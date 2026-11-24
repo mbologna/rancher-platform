@@ -37,6 +37,9 @@ own machines (a custom cluster). Its nodes are Docker containers `rp-<name>-<n>`
 using the [`rancher/systemd-node`](https://hub.docker.com/r/rancher/systemd-node) image from
 Rancher's provisioning tests. Use them to try provisioning, upgrades and node changes from the
 Rancher UI or API. Rancher does not support this node type, and each node needs about 2 GB of RAM.
+To run workloads on RKE2 on Docker, prefer the Cluster API example `docker-rke2-example`
+([Cluster API](cluster-api.md)): CAPD and CAPRKE2 are supported providers and the cluster is
+declared in Git. Use `type: rke2` to exercise Rancher's own custom-cluster provisioning.
 
 ```yaml
 downstream_clusters:
