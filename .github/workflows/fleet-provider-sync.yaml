@@ -37,10 +37,10 @@ jobs:
       contents: write # push the sync commit
       actions: write # approve the runs GitHub holds on it
     steps:
-      # The job pushes the synced pins to this branch, so it keeps the checkout's credentials.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7 # zizmor: ignore[artipacked]
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.head_ref }}
+          persist-credentials: false
 
       - name: Sync the provider pins with Rancher's Turtles catalogue
         id: sync
@@ -59,6 +59,12 @@ jobs:
         if: steps.sync.outputs.changed == 'true'
         env:
           HEAD_REF: ${{ github.head_ref }}
+          # Git reads the token from this step's environment for the push, so the checkout
+          # stores no credentials in .git/config.
+          GITHUB_TOKEN: ${{ github.token }}
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: credential.${{ github.server_url }}.helper
+          GIT_CONFIG_VALUE_0: '!f() { echo username=x-access-token; echo "password=${GITHUB_TOKEN}"; }; f'
         run: |
           # The exact author the shared preset's gitIgnoredAuthors lists.
           git config user.name "github-actions[bot]"
