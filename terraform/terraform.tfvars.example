@@ -4,7 +4,7 @@ aws_region   = "eu-west-1"
 project_name = "rancher-platform"
 environment  = "dev"
 
-# EC2 (openSUSE Leap 16.0 by default; override ami_name_filter/ami_owner for another image)
+# EC2 (openSUSE Leap 16.1 by default; override ami_name_filter/ami_owner for another image)
 instance_type       = "t3.xlarge"
 root_volume_size_gb = 100
 

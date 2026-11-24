@@ -109,9 +109,9 @@ variable "rancher_hostname" {
 }
 
 variable "ami_name_filter" {
-  description = "AMI name pattern for the management node (openSUSE Leap 16.0 by default)"
+  description = "AMI name pattern for the management node (openSUSE Leap 16.1 by default)"
   type        = string
-  default     = "openSUSE-Leap-16-0-v*-hvm-ssd-x86_64*"
+  default     = "openSUSE-Leap-16-1-v*-hvm-ssd-x86_64*"
 }
 
 variable "ami_owner" {

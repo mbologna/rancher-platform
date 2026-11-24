@@ -33,8 +33,8 @@ Renovate updates them.
 
 Run the commands from the repository root unless noted. All of them are safe to re-run.
 
-1. Get a Linux host you can SSH into as root or with passwordless sudo: openSUSE Leap 16.0,
-   SLES 15 SP7, or Ubuntu 22.04 or 24.04, with 4 vCPUs, 16 GB RAM, 100 GB disk and ports 80
+1. Get a Linux host you can SSH into as root or with passwordless sudo: openSUSE Leap 16.1 or
+   16.0, SLES 15 SP7, or Ubuntu 22.04 or 24.04, with 4 vCPUs, 16 GB RAM, 100 GB disk and ports 80
    and 443 reachable from your browser. Use one of three options, described in
    [docs/hosts.md](docs/hosts.md):
 

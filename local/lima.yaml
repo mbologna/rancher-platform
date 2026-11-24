@@ -1,14 +1,14 @@
 ---
 # Lima VM for a local rancher-platform deploy. Create it with ./local/lima.sh up.
 minimumLimaVersion: 2.0.0
-# openSUSE Leap 16.0, named here rather than through Lima's template:opensuse-leap-16, which
-# follows whatever release the installed Lima ships; terraform/ pins 16.0 the same way
+# openSUSE Leap 16.1, named here rather than through Lima's template:opensuse-leap-16, which
+# follows whatever release the installed Lima ships; terraform/ pins 16.1 the same way
 # (ami_name_filter). openSUSE keeps only the newest build of each image, so these are its
-# maintenance rebuilds of 16.0, without a digest; `limactl prune` drops the cached copy.
+# maintenance rebuilds of 16.1, without a digest; `limactl prune` drops the cached copy.
 images:
-  - location: https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.aarch64-Cloud.qcow2
+  - location: https://download.opensuse.org/distribution/leap/16.1/appliances/Leap-16.1-Minimal-VM.aarch64-Cloud.qcow2
     arch: aarch64
-  - location: https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.x86_64-Cloud.qcow2
+  - location: https://download.opensuse.org/distribution/leap/16.1/appliances/Leap-16.1-Minimal-VM.x86_64-Cloud.qcow2
     arch: x86_64
 cpus: 4
 memory: 12GiB
