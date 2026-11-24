@@ -18,17 +18,20 @@ agents to the new name.
 
 ## Development builds
 
-Release candidates and alphas come from other chart channels; nightly builds are image tags on the
-pinned chart:
+Release candidates and alphas come from other chart channels; nightly builds are image tags:
 
 ```bash
 ./manage.sh deploy -e rancher_chart_channel=latest -e rancher_version=2.15.2-rc1
 ./manage.sh deploy -e rancher_image_tag=v2.15-head   # or head for the next minor
 ```
 
-Each deploy with a `head` tag compares the image digest on Docker Hub with the running pod and
-restarts Rancher when a newer build exists. Images from other registries (`rancher_image`) are
-restarted on every deploy. `rancher_settings` sets Rancher settings, for example
+A nightly build installs with the chart from its own commit, because the released chart stops
+matching once Rancher changes how it is packaged: v2.16 runs `rancher/rancher-server` and loads its
+system charts from an assets image. Each deploy pins `head` or `v2.15-head` to the commit tag of
+the newest build on Docker Hub, such as `v2.17-<commit>-head`, and upgrades Rancher when that
+changed, with a snapshot first. For an image outside Docker Hub (`rancher_image`), set the commit
+tag yourself. `deploy` compares a nightly build with releases by minor: v2.15-head replaces 2.15.3,
+but 2.15.3 does not replace v2.17-head. `rancher_settings` sets Rancher settings, for example
 `ui-dashboard-index` to load the dashboard from a local UI build, and `rancher_extra_values`
 merges chart values over the playbook's own.
 

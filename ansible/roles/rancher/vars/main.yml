@@ -4,11 +4,23 @@ rancher_tls_issuer_cn:
   rancher: dynamiclistener
   letsEncrypt: Let's Encrypt
 
+# dev_chart.yml replaces it with the image of the chart from a development build's commit.
 rancher_image_repo: "{{ rancher_image or 'rancher/rancher' }}"
 # Docker Hub images can be checked for a newer digest; others are restarted on every deploy.
 rancher_image_on_docker_hub: "{{ rancher_image_repo.split('/') | first is not search('[.:]') }}"
-rancher_image_moving: "{{ rancher_image_tag is match('^(head|latest|.*-head)$') }}"
-rancher_target: "{{ rancher_image_tag or 'v' ~ rancher_version }}"
+# Development builds (head, v2.15-head, v2.17-<commit>-head) use the chart from their commit.
+rancher_dev_build: "{{ rancher_image_tag is match('^(v[0-9.]+-([0-9a-f]{40}-)?)?head$') }}"
+# The tag deployed; dev_chart.yml pins a moving development tag to its commit tag.
+rancher_build_tag: "{{ rancher_image_tag }}"
+rancher_build_commit: "{{ rancher_build_tag | regex_search('[0-9a-f]{40}') | default('', true) }}"
+rancher_chart_dir: "{{ rancher_dev_dir }}/rancher-{{ rancher_build_commit }}/chart"
+# Development tags are pinned to a commit tag, which never moves.
+rancher_image_moving: "{{ rancher_build_tag == 'latest' }}"
+rancher_target: "{{ rancher_build_tag or 'v' ~ rancher_version }}"
+# A development build is versioned below the releases of its minor, e.g. 2.17.0-head.
+rancher_chart_version: >-
+  {{ rancher_build_tag | regex_replace('^v([0-9]+[.][0-9]+)-.*$', '\1.0-head')
+     if rancher_dev_build else rancher_version }}
 
 rancher_values: >-
   {{ rancher_values_base
@@ -16,7 +28,7 @@ rancher_values: >-
      | combine(rancher_extra_values, recursive=true) }}
 rancher_values_image: >-
   {{ ({'repository': rancher_image} if rancher_image else {})
-     | combine({'tag': rancher_image_tag} if rancher_image_tag else {})
+     | combine({'tag': rancher_build_tag} if rancher_build_tag else {})
      | combine({'pullPolicy': 'Always'} if rancher_image_moving else {}) }}
 rancher_values_base:
   hostname: "{{ rancher_hostname }}"
