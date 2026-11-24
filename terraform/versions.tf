@@ -13,10 +13,5 @@ terraform {
     }
   }
 
-  # Uncomment to store state in S3 (recommended for teams)
-  # backend "s3" {
-  #   bucket = "my-terraform-state"
-  #   key    = "rancher-platform/terraform.tfstate"
-  #   region = "eu-west-1"
-  # }
+  # State is local; copy backend.tf.example to backend.tf to keep it in S3.
 }
