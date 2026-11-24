@@ -45,7 +45,10 @@ always uses that RKE2 kubeconfig.
 `uninstall-rancher` removes Rancher, Rancher AI and cert-manager, and keeps RKE2 and the
 downstream clusters; the next `deploy` reinstalls Rancher and re-imports the kind clusters.
 Clusters provisioned by Rancher have not been tested across a reinstall; remove them from
-`downstream_clusters` and deploy before uninstalling.
+`downstream_clusters` and deploy before uninstalling. It leaves Rancher's CRDs and webhooks in
+place. To remove everything Rancher created, including those and the Monitoring and Fleet
+resources, run Rancher's [rancher-cleanup](https://github.com/rancher/rancher-cleanup) Job
+afterwards; the next `deploy` then imports the kind clusters as new clusters.
 
 ## Troubleshooting
 
