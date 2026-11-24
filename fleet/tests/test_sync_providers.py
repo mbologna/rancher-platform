@@ -78,7 +78,10 @@ class SyncProvidersTests(unittest.TestCase):
         if repository == "rancher/rancher":
             self.assertEqual((path, ref), ("build.yaml", self.rancher))
             return f"webhookVersion: 110.0.4+up0.11.4\nturtlesVersion: 110.0.4+up{self.release['turtles'][1:]}\n"
-        self.assertEqual((repository, path, ref), ("rancher/turtles", sync_providers.CATALOGUE, self.release["turtles"]))
+        self.assertEqual(
+            (repository, path, ref),
+            ("rancher/turtles", sync_providers.CATALOGUE, self.release["turtles"]),
+        )
         return CATALOGUE.format(**self.release)
 
     def run_main(self, *arguments):
@@ -88,7 +91,10 @@ class SyncProvidersTests(unittest.TestCase):
         return code, stdout.getvalue(), stderr.getvalue()
 
     def texts(self):
-        return {path: (self.root / path).read_text() for path in (sync_providers.TURTLES_VALUES, sync_providers.PROVIDERS_VALUES)}
+        return {
+            path: (self.root / path).read_text()
+            for path in (sync_providers.TURTLES_VALUES, sync_providers.PROVIDERS_VALUES)
+        }
 
     def test_matching_catalogue_changes_nothing(self):
         before = self.texts()
@@ -100,7 +106,9 @@ class SyncProvidersTests(unittest.TestCase):
 
     def test_new_catalogue_rewrites_every_pin_and_nothing_else(self):
         before = self.texts()
-        self.release.update(turtles="v9.1.2", core="v9.2.3", docker="v9.2.3", aws="v9.3.4", rke2="v9.4.5")
+        self.release.update(
+            turtles="v9.1.2", core="v9.2.3", docker="v9.2.3", aws="v9.3.4", rke2="v9.4.5"
+        )
         code, stdout, _ = self.run_main()
         self.assertEqual(code, 0)
         after = self.texts()
@@ -108,7 +116,9 @@ class SyncProvidersTests(unittest.TestCase):
         providers = after[sync_providers.PROVIDERS_VALUES]
         self.assertIn("# chart-version: v9.1.2\n", turtles)
         self.assertIn("      version: v9.2.3\n", turtles)
-        self.assertEqual(re.findall(r"version: (v\S+)", providers), ["v9.4.5", "v9.4.5", "v9.3.4", "v9.2.3"])
+        self.assertEqual(
+            re.findall(r"version: (v\S+)", providers), ["v9.4.5", "v9.4.5", "v9.3.4", "v9.2.3"]
+        )
         self.assertIn("- CAPA: ", stdout)
         self.assertIn("- Turtles: ", stdout)
         # Only the version values change: comments, Renovate markers and layout stay.
@@ -135,11 +145,17 @@ class SyncProvidersTests(unittest.TestCase):
     def test_rancher_follows_the_ansible_pin(self):
         before = self.texts()
         self.rancher = "v9.0.1"
-        self.config.write_text(self.config.read_text().replace(
-            pin(self.config.read_text(), r"^(rancher_version: .*)$"), 'rancher_version: "9.0.1"'))
+        self.config.write_text(
+            self.config.read_text().replace(
+                pin(self.config.read_text(), r"^(rancher_version: .*)$"), 'rancher_version: "9.0.1"'
+            )
+        )
         code, _, stderr = self.run_main("--check")
         self.assertEqual(code, 1)
-        self.assertIn(f"Rancher is {pin(before[sync_providers.TURTLES_VALUES], r'^# rancher-version: (\S+)$')}", stderr)
+        self.assertIn(
+            f"Rancher is {pin(before[sync_providers.TURTLES_VALUES], r'^# rancher-version: (\S+)$')}",
+            stderr,
+        )
         self.assertIn(f"{sync_providers.ANSIBLE_CONFIG} expects v9.0.1", stderr)
         self.assertEqual(self.texts(), before)
         code, stdout, _ = self.run_main()
@@ -149,8 +165,12 @@ class SyncProvidersTests(unittest.TestCase):
         self.assertEqual(self.requests[-2][:3], ("rancher/rancher", "build.yaml", "v9.0.1"))
 
     def test_unpinned_ansible_rancher_is_rejected(self):
-        self.config.write_text(self.config.read_text().replace(
-            pin(self.config.read_text(), r"^(rancher_version: .*)$"), 'rancher_version: "{{ latest }}"'))
+        self.config.write_text(
+            self.config.read_text().replace(
+                pin(self.config.read_text(), r"^(rancher_version: .*)$"),
+                'rancher_version: "{{ latest }}"',
+            )
+        )
         code, _, stderr = self.run_main()
         self.assertEqual(code, 2)
         self.assertIn("expected a stable", stderr)
@@ -173,7 +193,9 @@ class SyncProvidersTests(unittest.TestCase):
     def test_missing_catalogue_provider_is_rejected(self):
         catalogue = CATALOGUE.replace('"docker"', '"kind"')
         read = self.read
-        self.read = lambda *args: catalogue.format(**self.release) if args[0] == "rancher/turtles" else read(*args)
+        self.read = lambda *args: (
+            catalogue.format(**self.release) if args[0] == "rancher/turtles" else read(*args)
+        )
         code, _, stderr = self.run_main()
         self.assertEqual(code, 2)
         self.assertIn("no InfrastructureProvider docker", stderr)
@@ -186,8 +208,12 @@ class SyncProvidersTests(unittest.TestCase):
         self.assertIn("no version key under providers.bootstrapRKE2", stderr)
 
     def test_turtles_version_parsing(self):
-        self.assertEqual(sync_providers.turtles_version("turtlesVersion: 110.0.4+up0.27.4\n"), "v0.27.4")
-        self.assertEqual(sync_providers.turtles_version('turtlesVersion: "110.0.4+up0.27.4"\n'), "v0.27.4")
+        self.assertEqual(
+            sync_providers.turtles_version("turtlesVersion: 110.0.4+up0.27.4\n"), "v0.27.4"
+        )
+        self.assertEqual(
+            sync_providers.turtles_version('turtlesVersion: "110.0.4+up0.27.4"\n'), "v0.27.4"
+        )
         with self.assertRaises(sync_providers.SyncError):
             sync_providers.turtles_version("turtlesVersion: 0.27.4\n")
 

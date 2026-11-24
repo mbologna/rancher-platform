@@ -17,8 +17,10 @@ fleet = ["jsonschema==4.26.0"]
 package = false
 
 [tool.ruff]
-line-length = 140
+line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B"]
+# ruff format wraps code to line-length; what it leaves longer is a string it cannot split.
+ignore = ["E501"]

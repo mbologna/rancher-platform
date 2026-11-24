@@ -137,7 +137,8 @@ class ValidateRepositoryTests(unittest.TestCase):
     def test_invalid_cidr_is_reported(self):
         self.replace(
             "clusters/aws-rke2-example/cluster.yaml",
-            "REPLACE_WITH_TRUSTED_CLIENT_CIDR", "not-a-network",
+            "REPLACE_WITH_TRUSTED_CLIENT_CIDR",
+            "not-a-network",
         )
         self.validate("invalid CIDR")
 
@@ -156,32 +157,41 @@ class ValidateRepositoryTests(unittest.TestCase):
     def test_versioned_classes_reject_manual_install(self):
         self.replace(
             "clusterclasses/aws-rke2/clusterclass-v136.yaml",
-            "hostnamectl set-hostname", "curl https://get.rke2.io; hostnamectl set-hostname",
+            "hostnamectl set-hostname",
+            "curl https://get.rke2.io; hostnamectl set-hostname",
         )
         self.validate("must use native bootstrap")
 
     def test_identity_must_limit_namespaces(self):
         self.replace(
             "identities/aws/aws-cluster-identity.yaml",
-            "  allowedNamespaces:\n    list:\n      - default", "  allowedNamespaces: {}",
+            "  allowedNamespaces:\n    list:\n      - default",
+            "  allowedNamespaces: {}",
         )
         self.validate("must be restricted")
 
     def test_provider_versions_must_be_stable(self):
         path = self.root / "platform/providers-values.yaml"
-        text, count = re.subn(r"(?m)^(    version: )v\d+\.\d+\.\d+$", r"\1v0.28.0-rc.1", path.read_text(), count=1)
+        text, count = re.subn(
+            r"(?m)^(    version: )v\d+\.\d+\.\d+$", r"\1v0.28.0-rc.1", path.read_text(), count=1
+        )
         self.assertEqual(count, 1)
         path.write_text(text)
         self.validate("requires an explicit stable release")
 
     def test_automatic_provider_updates_are_rejected(self):
-        self.replace("platform/providers-values.yaml", "enableAutomaticUpdate: false", "enableAutomaticUpdate: true")
+        self.replace(
+            "platform/providers-values.yaml",
+            "enableAutomaticUpdate: false",
+            "enableAutomaticUpdate: true",
+        )
         self.validate("automatic updates disabled")
 
     def test_bad_patch_path_is_reported(self):
         self.replace(
             "clusterclasses/aws-rke2/clusterclass-v136.yaml",
-            "/spec/template/spec/instanceType", "/spec/template/spec/typo",
+            "/spec/template/spec/instanceType",
+            "/spec/template/spec/typo",
         )
         self.validate("invalid patch path")
 

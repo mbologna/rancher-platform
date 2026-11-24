@@ -60,8 +60,11 @@ def validate_schemas(root, resources, platform):
     schemas = {}
     for url in urls:
         result = subprocess.run(
-            ["yq", "-o=json", "-I=0", "."], input=fetch(url),
-            text=True, capture_output=True, check=True,
+            ["yq", "-o=json", "-I=0", "."],
+            input=fetch(url),
+            text=True,
+            capture_output=True,
+            check=True,
         )
         for line in result.stdout.splitlines():
             document = json.loads(line)
@@ -73,9 +76,11 @@ def validate_schemas(root, resources, platform):
                     schemas[(f"{spec['group']}/{version['name']}", spec["names"]["kind"])] = (
                         kubernetes_schema(version["schema"]["openAPIV3Schema"])
                     )
-    kubernetes = json.loads(fetch(
-        f"https://raw.githubusercontent.com/kubernetes/kubernetes/{KUBERNETES_VERSION}/api/openapi-spec/swagger.json"
-    ))
+    kubernetes = json.loads(
+        fetch(
+            f"https://raw.githubusercontent.com/kubernetes/kubernetes/{KUBERNETES_VERSION}/api/openapi-spec/swagger.json"
+        )
+    )
     for definition in kubernetes["definitions"].values():
         for gvk in definition.get("x-kubernetes-group-version-kind", []):
             group = gvk["group"]
@@ -83,7 +88,8 @@ def validate_schemas(root, resources, platform):
                 continue
             api_version = f"{group}/{gvk['version']}" if group else gvk["version"]
             schemas[(api_version, gvk["kind"])] = {
-                **definition, "definitions": kubernetes["definitions"],
+                **definition,
+                "definitions": kubernetes["definitions"],
             }
     for path, resource in resources:
         schema = schemas.get((resource["apiVersion"], resource["kind"]))
@@ -94,10 +100,13 @@ def validate_schemas(root, resources, platform):
             continue
         schema = copy.deepcopy(schema)
         # Kubernetes injects ObjectMeta and TypeMeta separately from CRD schemas.
-        schema.setdefault("properties", {}).update({
-            "apiVersion": {"type": "string"}, "kind": {"type": "string"},
-            "metadata": {"type": "object"},
-        })
+        schema.setdefault("properties", {}).update(
+            {
+                "apiVersion": {"type": "string"},
+                "kind": {"type": "string"},
+                "metadata": {"type": "object"},
+            }
+        )
         for error in Draft7Validator(schema).iter_errors(resource):
             # Template placeholders keep their string type; deployment preflight
             # rejects them before Kubernetes sees these example manifests.
@@ -105,20 +114,30 @@ def validate_schemas(root, resources, platform):
                 if re.fullmatch(r"REPLACE_WITH_[A-Z_]+", error.instance):
                     continue
             location = "/".join(str(item) for item in error.absolute_path)
-            errors.append(f"{path.relative_to(root)} {resource['kind']}/{resource['metadata']['name']} /{location}: {error.message}")
+            errors.append(
+                f"{path.relative_to(root)} {resource['kind']}/{resource['metadata']['name']} /{location}: {error.message}"
+            )
         if resource["kind"] == "Cluster":
             topology = resource.get("spec", {}).get("topology", {})
             class_name = topology.get("classRef", {}).get("name")
-            cluster_class = next((
-                item for _, item in resources
-                if item["kind"] == "ClusterClass" and item["metadata"]["name"] == class_name
-            ), None)
+            cluster_class = next(
+                (
+                    item
+                    for _, item in resources
+                    if item["kind"] == "ClusterClass" and item["metadata"]["name"] == class_name
+                ),
+                None,
+            )
             if cluster_class:
                 values = {item["name"]: item["value"] for item in topology.get("variables", [])}
                 for variable in cluster_class["spec"].get("variables", []):
                     if variable["name"] in values:
-                        for error in Draft7Validator(variable["schema"]["openAPIV3Schema"]).iter_errors(values[variable["name"]]):
-                            errors.append(f"{path.relative_to(root)} variable {variable['name']}: {error.message}")
+                        for error in Draft7Validator(
+                            variable["schema"]["openAPIV3Schema"]
+                        ).iter_errors(values[variable["name"]]):
+                            errors.append(
+                                f"{path.relative_to(root)} variable {variable['name']}: {error.message}"
+                            )
     text = (root / "platform/turtles-values.yaml").read_text()
     turtles = re.search(r"# chart-version: (v\d+\.\d+\.\d+)", text)
     if turtles is None:
@@ -141,41 +160,74 @@ def validate_charts(root, version):
     errors = []
     crd = subprocess.run(
         ["yq", "-o=json", "-I=0", "."],
-        input=fetch(f"https://raw.githubusercontent.com/rancher/turtles/{version}/config/crd/bases/turtles-capi.cattle.io_capiproviders.yaml"),
-        text=True, capture_output=True, check=True,
+        input=fetch(
+            f"https://raw.githubusercontent.com/rancher/turtles/{version}/config/crd/bases/turtles-capi.cattle.io_capiproviders.yaml"
+        ),
+        text=True,
+        capture_output=True,
+        check=True,
     )
-    provider_schema = kubernetes_schema(json.loads(crd.stdout)["spec"]["versions"][0]["schema"]["openAPIV3Schema"])
-    provider_schema["properties"].update({
-        "apiVersion": {"type": "string"}, "kind": {"type": "string"}, "metadata": {"type": "object"},
-    })
+    provider_schema = kubernetes_schema(
+        json.loads(crd.stdout)["spec"]["versions"][0]["schema"]["openAPIV3Schema"]
+    )
+    provider_schema["properties"].update(
+        {
+            "apiVersion": {"type": "string"},
+            "kind": {"type": "string"},
+            "metadata": {"type": "object"},
+        }
+    )
     with tempfile.TemporaryDirectory(prefix="turtles-chart-check-") as directory:
         with tarfile.open(fileobj=io.BytesIO(archive)) as source:
             members = [member for member in source.getmembers() if "/charts/" in member.name]
             source.extractall(directory, members=members, filter="data")
         charts = next(Path(directory).glob("*/charts"))
-        for chart, name in (("rancher-turtles", "turtles"), ("rancher-turtles-providers", "providers")):
+        for chart, name in (
+            ("rancher-turtles", "turtles"),
+            ("rancher-turtles-providers", "providers"),
+        ):
             result = subprocess.run(
-                ["helm", "template", chart, str(charts / chart), "--namespace", "cattle-turtles-system",
-                 "--kube-version", KUBERNETES_VERSION, "-f", str(root / "platform" / f"{name}-values.yaml")],
-                capture_output=True, text=True, check=False,
+                [
+                    "helm",
+                    "template",
+                    chart,
+                    str(charts / chart),
+                    "--namespace",
+                    "cattle-turtles-system",
+                    "--kube-version",
+                    KUBERNETES_VERSION,
+                    "-f",
+                    str(root / "platform" / f"{name}-values.yaml"),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
             )
             if result.returncode:
                 errors.append(f"{chart}: Helm render failed: {result.stderr}")
                 continue
             documents = subprocess.run(
-                ["yq", "-o=json", "-I=0", "."], input=result.stdout,
-                text=True, capture_output=True, check=True,
+                ["yq", "-o=json", "-I=0", "."],
+                input=result.stdout,
+                text=True,
+                capture_output=True,
+                check=True,
             )
             providers = [
-                item for line in documents.stdout.splitlines()
+                item
+                for line in documents.stdout.splitlines()
                 if isinstance(item := json.loads(line), dict) and item.get("kind") == "CAPIProvider"
             ]
             expected_count = 1 if name == "turtles" else 4
             if len(providers) != expected_count:
-                errors.append(f"{chart}: expected {expected_count} rendered providers, found {len(providers)}")
+                errors.append(
+                    f"{chart}: expected {expected_count} rendered providers, found {len(providers)}"
+                )
             for provider in providers:
                 for error in Draft7Validator(provider_schema).iter_errors(provider):
-                    errors.append(f"{chart} CAPIProvider/{provider['metadata']['name']}: {error.message}")
+                    errors.append(
+                        f"{chart} CAPIProvider/{provider['metadata']['name']}: {error.message}"
+                    )
                 spec = provider["spec"]
                 if provider["apiVersion"] != "turtles-capi.cattle.io/v1alpha1":
                     errors.append(f"{chart}: unexpected CAPIProvider API")

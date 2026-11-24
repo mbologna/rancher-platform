@@ -26,11 +26,31 @@ CATALOGUE = "internal/controllers/clusterctl/config-prime.yaml"
 STABLE = re.compile(r"v\d+\.\d+\.\d+")
 # Each pinned version key, by file and YAML path, and the catalogue entry it follows.
 PINS = {
-    (TURTLES_VALUES, ("cluster-api-operator", "cluster-api", "core")): ("CoreProvider", "cluster-api", "core CAPI"),
-    (PROVIDERS_VALUES, ("providers", "infrastructureDocker")): ("InfrastructureProvider", "docker", "CAPD"),
-    (PROVIDERS_VALUES, ("providers", "infrastructureAWS")): ("InfrastructureProvider", "aws", "CAPA"),
-    (PROVIDERS_VALUES, ("providers", "bootstrapRKE2")): ("BootstrapProvider", "rke2", "CAPRKE2 bootstrap"),
-    (PROVIDERS_VALUES, ("providers", "controlplaneRKE2")): ("ControlPlaneProvider", "rke2", "CAPRKE2 control plane"),
+    (TURTLES_VALUES, ("cluster-api-operator", "cluster-api", "core")): (
+        "CoreProvider",
+        "cluster-api",
+        "core CAPI",
+    ),
+    (PROVIDERS_VALUES, ("providers", "infrastructureDocker")): (
+        "InfrastructureProvider",
+        "docker",
+        "CAPD",
+    ),
+    (PROVIDERS_VALUES, ("providers", "infrastructureAWS")): (
+        "InfrastructureProvider",
+        "aws",
+        "CAPA",
+    ),
+    (PROVIDERS_VALUES, ("providers", "bootstrapRKE2")): (
+        "BootstrapProvider",
+        "rke2",
+        "CAPRKE2 bootstrap",
+    ),
+    (PROVIDERS_VALUES, ("providers", "controlplaneRKE2")): (
+        "ControlPlaneProvider",
+        "rke2",
+        "CAPRKE2 control plane",
+    ),
 }
 
 
@@ -49,12 +69,16 @@ def fetch(repository, path, ref, token=None):
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as response:
+        with urllib.request.urlopen(
+            urllib.request.Request(url, headers=headers), timeout=60
+        ) as response:
             return response.read().decode()
     except urllib.error.HTTPError as error:
         raise SyncError(f"Cannot read {repository}/{path} at {ref}: HTTP {error.code}") from None
     except (urllib.error.URLError, TimeoutError) as error:
-        raise SyncError(f"Cannot read {repository}/{path} at {ref}: {getattr(error, 'reason', error)}") from None
+        raise SyncError(
+            f"Cannot read {repository}/{path} at {ref}: {getattr(error, 'reason', error)}"
+        ) from None
 
 
 def rancher_version(text):
@@ -67,7 +91,9 @@ def rancher_version(text):
 
 def turtles_version(build_yaml):
     """Turtles release from Rancher's build.yaml, e.g. turtlesVersion: 110.0.4+up0.27.4."""
-    match = re.search(r"^turtlesVersion:\s*[\"']?[^\s\"']*\+up(\d+\.\d+\.\d+)[\"']?\s*$", build_yaml, re.MULTILINE)
+    match = re.search(
+        r"^turtlesVersion:\s*[\"']?[^\s\"']*\+up(\d+\.\d+\.\d+)[\"']?\s*$", build_yaml, re.MULTILINE
+    )
     if not match:
         raise SyncError("Rancher build.yaml: no turtlesVersion of the form <chart>+upX.Y.Z")
     return f"v{match[1]}"
@@ -116,14 +142,18 @@ def rewrite(relative_path, text, rancher, turtles, catalogue):
         if expected is None:
             raise SyncError(f"Turtles {turtles}'s catalogue has no {provider_type} {name}")
         if not STABLE.fullmatch(expected):
-            raise SyncError(f"Turtles {turtles}'s catalogue pins {provider_type} {name} to {expected}, not a stable release")
+            raise SyncError(
+                f"Turtles {turtles}'s catalogue pins {provider_type} {name} to {expected}, not a stable release"
+            )
         match = re.match(r"(\s*version:\s*)(\S+)(.*)", lines[index], re.DOTALL)
         if match[2] != expected:
             changes.append((relative_path, label, match[2], expected, f"Turtles {turtles}"))
             lines[index] = f"{match[1]}{expected}{match[3]}"
     missing = {parents for path, parents in PINS if path == relative_path} - found
     if missing:
-        raise SyncError(f"{relative_path}: no version key under {', '.join('.'.join(item) for item in sorted(missing))}")
+        raise SyncError(
+            f"{relative_path}: no version key under {', '.join('.'.join(item) for item in sorted(missing))}"
+        )
     if relative_path == TURTLES_VALUES:
         for key, label, expected, source in (
             ("rancher-version", "Rancher", rancher, ANSIBLE_CONFIG),
@@ -156,7 +186,9 @@ def sync(root, read=fetch, token=None):
 
 def main(argv=None, root=ROOT, read=fetch):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="Report drift and exit 1; write nothing")
+    parser.add_argument(
+        "--check", action="store_true", help="Report drift and exit 1; write nothing"
+    )
     args = parser.parse_args(argv)
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     try:
@@ -164,7 +196,9 @@ def main(argv=None, root=ROOT, read=fetch):
     except SyncError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
-    print(f"Rancher {rancher} ({ANSIBLE_CONFIG}) ships Turtles {turtles}; pins follow its provider catalogue.")
+    print(
+        f"Rancher {rancher} ({ANSIBLE_CONFIG}) ships Turtles {turtles}; pins follow its provider catalogue."
+    )
     if args.check:
         for path, label, old, new, source in changes:
             print(f"ERROR: {path}: {label} is {old}, {source} expects {new}", file=sys.stderr)
