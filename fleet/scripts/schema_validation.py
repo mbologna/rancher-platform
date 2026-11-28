@@ -15,7 +15,7 @@ from jsonschema import Draft7Validator
 
 # The core API schemas and the chart renders target this Kubernetes release.
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
-KUBERNETES_VERSION = "v1.36.4"
+KUBERNETES_VERSION = "v1.36.6"
 
 
 def fetch(url):
